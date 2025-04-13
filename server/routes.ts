@@ -3204,6 +3204,38 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get all timeline images (global endpoint)
+  app.get('/api/timeline-images', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+
+      const userId = req.user!.id;
+      
+      // Join with timelines to only get images for timelines that belong to this user
+      const images = await db
+        .select({
+          id: timelineImages.id,
+          timelineId: timelineImages.timelineId,
+          imageUrl: timelineImages.imageUrl,
+          caption: timelineImages.caption,
+          order: timelineImages.order,
+          createdAt: timelineImages.createdAt,
+          updatedAt: timelineImages.updatedAt,
+        })
+        .from(timelineImages)
+        .innerJoin(timelines, eq(timelineImages.timelineId, timelines.id))
+        .where(eq(timelines.userId, userId))
+        .orderBy(timelineImages.order);
+
+      res.json(images);
+    } catch (error) {
+      console.error('Error fetching all timeline images:', error);
+      res.status(500).json({ message: 'Failed to fetch timeline images' });
+    }
+  });
+
   const server = createServer(app);
   return server;
 }
