@@ -321,12 +321,11 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
 
     setUploading(true);
     try {
-      // Upload each file to S3 first
+      // Try to upload files to S3 first
       const uploadPromises = selectedFiles.map(async (file) => {
         try {
           // Upload to S3 and get the key
           const s3Key = await uploadToS3(file, timelineId);
-          
           return {
             file,
             s3Key,
@@ -349,26 +348,49 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
         throw new Error('All uploads to S3 failed');
       }
 
-      // Now save the S3 keys in the database
-      const formData = new FormData();
-      formData.append('s3Keys', JSON.stringify(successfulUploads.map(r => r.s3Key)));
-      
-      // Also send original filenames for reference
-      formData.append('filenames', JSON.stringify(
-        successfulUploads.map(r => r.file.name)
-      ));
+      // Check if uploaded keys are fallback keys (when S3 is not available)
+      const hasFallbackKeys = successfulUploads.some(upload => 
+        upload.s3Key?.startsWith('fallback-s3-key-')
+      );
 
-      const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/s3`, {
-        method: 'POST',
-        body: formData,
-      });
+      if (hasFallbackKeys) {
+        // If using fallback keys, fall back to the standard file upload endpoint
+        const formData = new FormData();
+        selectedFiles.forEach(file => {
+          formData.append('images', file);
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to save images to database');
+        const response = await fetchWithAuth(`/api/timelines/${timelineId}/images`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to upload images to server');
+        }
+      } else {
+        // Using real S3 keys - save them to the database
+        const formData = new FormData();
+        formData.append('s3Keys', JSON.stringify(successfulUploads.map(r => r.s3Key)));
+        
+        // Also send original filenames for reference
+        formData.append('filenames', JSON.stringify(
+          successfulUploads.map(r => r.file.name)
+        ));
+
+        const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/s3`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to save images to database');
+        }
       }
 
       // Reset selected files
       setSelectedFiles([]);
+      
       // Refresh the images list
       queryClient.invalidateQueries({ queryKey: [`/api/timelines/${timelineId}/images`] });
       
