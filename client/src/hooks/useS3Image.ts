@@ -26,10 +26,19 @@ export function useS3Image(imageUrl: string | null | undefined, options?: UseS3I
       return;
     }
     
-    // Check if the URL is an S3 key (not a memory placeholder or full URL)
-    if (imageUrl.startsWith('memory-storage-placeholder-') || imageUrl.startsWith('http')) {
+    // Check if the URL is an S3 key (not a memory placeholder or a data URL)
+    if (imageUrl.startsWith('memory-storage-placeholder-') || 
+        imageUrl.startsWith('http') || 
+        imageUrl.startsWith('data:')) {
       // Just use the original URL
       setSignedUrl(imageUrl);
+      return;
+    }
+    
+    // Handle fallback keys created by our fallback S3 service
+    if (imageUrl.startsWith('fallback-s3-key-')) {
+      // Generate a placeholder image
+      setSignedUrl('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiPkltYWdlIFVuYXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==');
       return;
     }
     
@@ -48,8 +57,8 @@ export function useS3Image(imageUrl: string | null | undefined, options?: UseS3I
         setSignedUrl(url);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to get signed URL'));
-        // Fallback to original URL
-        setSignedUrl(imageUrl);
+        // Fallback to a placeholder image
+        setSignedUrl('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiPkVycm9yIExvYWRpbmcgSW1hZ2U8L3RleHQ+PC9zdmc+');
       } finally {
         setLoading(false);
       }
