@@ -1,7 +1,7 @@
 {
   "version": 2,
   "framework": null,
-  "buildCommand": "npm install && npm run build && node vercel-deploy.js",
+  "buildCommand": "node vercel-custom-build.js && node vercel-aws-fix.js",
   "installCommand": "echo 'Using custom buildCommand instead'",
   "outputDirectory": "public",
   "devCommand": "npm run dev",
