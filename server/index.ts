@@ -9,6 +9,9 @@ import { sql } from "drizzle-orm";
 import cors from "cors";
 import { initializePaymentService, handleWebhookEvent } from "./services/payment.js";
 import path from "path";
+import dotenv from 'dotenv';
+import { initializeEmailService } from './services/email.js';
+import { initializeS3Service } from './services/s3Service.js';
 
 const app = express();
 app.use(cors());
@@ -72,6 +75,23 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   }
 });
 
+// Initialize services
+async function initializeServices() {
+  console.log('Initializing app services...');
+  
+  // Initialize email service
+  const emailResult = initializeEmailService();
+  console.log('Email service initialization:', emailResult ? 'Success' : 'Failed');
+  
+  // Initialize payment service
+  const paymentResult = await initializePaymentService();
+  console.log('Payment service initialization:', paymentResult ? 'Success' : 'Failed');
+  
+  // Initialize S3 service
+  const s3Result = await initializeS3Service();
+  console.log('S3 service initialization:', s3Result ? 'Success' : 'Failed');
+}
+
 // Verify database connection before proceeding
 async function startServer() {
   try {
@@ -92,8 +112,9 @@ async function startServer() {
     
     // 4. Payment Service Setup
     log('Step 4/7: Setting up payment service...');
-    const paymentServiceInitialized = await initializePaymentService();
-    log(`Payment service ${paymentServiceInitialized ? 'initialized successfully' : 'initialization failed'}`);
+    // Initialize all services including email and S3
+    await initializeServices();
+    log('Service initialization completed');
     
     // 5. Subscription Router Setup
     log('Step 5/7: Setting up subscription router...');
@@ -143,6 +164,27 @@ async function startServer() {
         res.status(200).json({ 
           success: false, 
           message: 'Webhook received but processing failed with error. Event has been logged.' 
+        });
+      }
+    });
+    
+    // Add S3 test endpoint
+    app.get('/api/s3/test', async (req, res) => {
+      try {
+        // Import the S3 service
+        const s3Service = (await import('./services/s3Service.js')).default;
+        
+        // Test the S3 connection
+        const testResult = await s3Service.testConnection();
+        
+        // Return the test result
+        res.json(testResult);
+      } catch (error) {
+        console.error('Error testing S3 connection:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to test S3 connection',
+          error: error.message
         });
       }
     });

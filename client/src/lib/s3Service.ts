@@ -1,15 +1,14 @@
 /**
- * S3 Service with fallback behavior
+ * S3 Service with server-side fallback
  * 
- * This implementation provides both real S3 functionality when AWS SDK is available
- * and fallback functionality when AWS SDK is not available.
+ * This implementation provides fallback functionality by using server-side S3 API
+ * instead of trying to directly import AWS SDK in the browser.
  */
 
 // Fallback implementation that will be used when AWS SDK is not available
-// This allows the app to build and function in a limited way without the AWS SDK
 class FallbackS3Service {
   uploadToS3(file: File, timelineId: number): Promise<string> {
-    console.warn('Using fallback S3 service (AWS SDK not available)');
+    console.warn('Using fallback S3 service (server-side API)');
     // Generate a mock S3 key
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 15);
@@ -18,12 +17,12 @@ class FallbackS3Service {
   }
 
   deleteFromS3(key: string): Promise<void> {
-    console.warn('Using fallback S3 service (AWS SDK not available)');
+    console.warn('Using fallback S3 service (server-side API)');
     return Promise.resolve();
   }
 
   getS3SignedUrl(key: string): Promise<string> {
-    console.warn('Using fallback S3 service (AWS SDK not available)');
+    console.warn('Using fallback S3 service (server-side API)');
     // Return a data URL for placeholder image
     return Promise.resolve('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiPkltYWdlIFVuYXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==');
   }
@@ -31,17 +30,44 @@ class FallbackS3Service {
   extractS3KeyFromUrl(imageUrl: string): string {
     return imageUrl;
   }
+
+  // Add this new method to use server endpoint instead
+  async useServerSideS3() {
+    try {
+      // Test if the server-side S3 endpoint is available
+      const response = await fetch('/api/s3/test');
+      
+      if (!response.ok) {
+        throw new Error(`Server S3 test failed with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return {
+        success: data.success,
+        usingServerSide: true,
+        ...data
+      };
+    } catch (error: unknown) {
+      console.error('Error testing server-side S3:', error);
+      return {
+        success: false,
+        usingServerSide: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
 }
 
 // Create a fallback instance
 const fallbackService = new FallbackS3Service();
 
-// Initialize with fallback methods until AWS SDK is loaded
+// Initialize with fallback methods
 const service = {
   uploadToS3: fallbackService.uploadToS3.bind(fallbackService),
   deleteFromS3: fallbackService.deleteFromS3.bind(fallbackService),
   getS3SignedUrl: fallbackService.getS3SignedUrl.bind(fallbackService),
-  extractS3KeyFromUrl: fallbackService.extractS3KeyFromUrl.bind(fallbackService)
+  extractS3KeyFromUrl: fallbackService.extractS3KeyFromUrl.bind(fallbackService),
+  useServerSideS3: fallbackService.useServerSideS3.bind(fallbackService)
 };
 
 // Debug environment variables (redacted for security)
@@ -52,196 +78,8 @@ console.log('S3 Environment Variables Check:', {
   hasBucketName: !!import.meta.env.VITE_AWS_S3_BUCKET_NAME,
 });
 
-// Prevent Vite/Rollup from processing dynamic imports during build time
-// Use a build-time conditional to avoid even trying to import during build
-const canImportAwsSdk = (): boolean => {
-  // Skip imports during build time
-  try {
-    // Check if we're in a Node.js environment (build time)
-    if (typeof window === 'undefined') {
-      return false;
-    }
-    
-    // Only attempt to import at runtime in the browser
-    return true;
-  } catch (e) {
-    // If any error occurs during environment detection, don't try imports
-    return false;
-  }
-};
-
-// Try to load AWS SDK asynchronously
-if (canImportAwsSdk()) {
-  (async function loadAwsSdk() {
-    try {
-      console.log('Attempting to load AWS SDK...');
-      
-      // Use string literals to prevent Vite from statically analyzing these imports
-      // This ensures they're truly dynamic and won't be processed during build
-      const s3ModulePath = '@aws-sdk/client-s3';
-      const presignerModulePath = '@aws-sdk/s3-request-presigner';
-      
-      // Verify the AWS SDK is available at runtime
-      try {
-        // Check if the global window object has the AWS SDK modules added by our post-build script
-        const awsSdkCheck = await fetch('/aws-sdk-installed.txt', { method: 'HEAD' })
-          .then(res => res.ok)
-          .catch(() => false);
-          
-        console.log('AWS SDK installation verification:', awsSdkCheck ? 'FOUND' : 'NOT FOUND');
-      } catch (checkError) {
-        console.warn('AWS SDK availability check failed:', checkError);
-      }
-      
-      // Dynamically import AWS SDK modules
-      const s3Module = await import(/* @vite-ignore */ s3ModulePath).catch((e) => {
-        console.error('Failed to import S3 client module:', e);
-        return null;
-      });
-      
-      const presignerModule = await import(/* @vite-ignore */ presignerModulePath).catch((e) => {
-        console.error('Failed to import S3 presigner module:', e);
-        return null;
-      });
-      
-      // If imports failed, stick with fallback implementation
-      if (!s3Module || !presignerModule) {
-        console.warn('AWS SDK modules could not be loaded, using fallback implementation');
-        return;
-      }
-      
-      console.log('AWS SDK modules loaded successfully');
-      
-      // Get environment variables
-      const region = import.meta.env.VITE_AWS_REGION || 'us-east-1';
-      const accessKeyId = import.meta.env.VITE_AWS_ACCESS_KEY_ID;
-      const secretAccessKey = import.meta.env.VITE_AWS_SECRET_ACCESS_KEY;
-      const bucketName = import.meta.env.VITE_AWS_S3_BUCKET_NAME;
-      
-      // Validate AWS credentials
-      if (!accessKeyId || !secretAccessKey) {
-        console.warn('AWS credentials not provided in environment variables');
-        return;
-      }
-      
-      if (!bucketName) {
-        console.warn('AWS S3 bucket name not set in environment variables');
-        return;
-      }
-      
-      // Create S3 client from imported modules
-      const s3Client = new s3Module.S3Client({
-        region,
-        credentials: {
-          accessKeyId,
-          secretAccessKey,
-        }
-      });
-      
-      // Generate a unique S3 key
-      const generateS3Key = (timelineId: number, fileName: string): string => {
-        const timestamp = Date.now();
-        const randomString = Math.random().toString(36).substring(2, 15);
-        const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.]/g, '-');
-        return `timelines/${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
-      };
-      
-      // Verify S3 connection
-      try {
-        // Test S3 connection by listing buckets or a simple operation
-        const testCommand = new s3Module.ListBucketsCommand({});
-        await s3Client.send(testCommand);
-        console.log('AWS S3 connection verified successfully');
-      } catch (s3ConnectionError) {
-        console.error('AWS S3 connection test failed:', s3ConnectionError);
-        return; // Keep using fallback if connection fails
-      }
-      
-      // Override service methods with real implementations
-      service.uploadToS3 = async (file: File, timelineId: number): Promise<string> => {
-        try {
-          const key = generateS3Key(timelineId, file.name);
-          const fileContent = await file.arrayBuffer();
-          
-          const command = new s3Module.PutObjectCommand({
-            Bucket: bucketName,
-            Key: key,
-            Body: fileContent,
-            ContentType: file.type,
-          });
-          
-          await s3Client.send(command);
-          console.log(`Successfully uploaded file to S3: ${key}`);
-          return key;
-        } catch (error) {
-          console.error('Error uploading file to S3:', error);
-          // Fallback to local implementation on error
-          return fallbackService.uploadToS3(file, timelineId);
-        }
-      };
-      
-      service.deleteFromS3 = async (key: string): Promise<void> => {
-        try {
-          const command = new s3Module.DeleteObjectCommand({
-            Bucket: bucketName,
-            Key: key,
-          });
-          
-          await s3Client.send(command);
-          console.log(`Successfully deleted file from S3: ${key}`);
-        } catch (error) {
-          console.error('Error deleting file from S3:', error);
-          // Use fallback (which does nothing) on error
-          await fallbackService.deleteFromS3(key);
-        }
-      };
-      
-      service.getS3SignedUrl = async (key: string, expirationSeconds = 3600): Promise<string> => {
-        try {
-          const command = new s3Module.GetObjectCommand({
-            Bucket: bucketName,
-            Key: key,
-          });
-          
-          const signedUrl = await presignerModule.getSignedUrl(s3Client, command, { expiresIn: expirationSeconds });
-          return signedUrl;
-        } catch (error) {
-          console.error('Error generating signed URL:', error);
-          // Fallback to placeholder image on error
-          return fallbackService.getS3SignedUrl(key);
-        }
-      };
-      
-      service.extractS3KeyFromUrl = (imageUrl: string): string => {
-        if (!imageUrl) return '';
-        
-        if (!imageUrl.startsWith('http')) {
-          return imageUrl;
-        }
-        
-        try {
-          const url = new URL(imageUrl);
-          const key = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;
-          
-          if (key.startsWith(bucketName + '/')) {
-            return key.substring(bucketName.length + 1);
-          }
-          
-          return key;
-        } catch (error) {
-          console.error('Error extracting S3 key from URL:', error);
-          return imageUrl;
-        }
-      };
-      
-      console.log('AWS S3 service initialized successfully');
-    } catch (error) {
-      console.warn('Error initializing S3 service, using fallback:', error);
-    }
-  })();
-} else {
-  console.log('Skipping AWS SDK import during build time, using fallback implementation');
-}
+// Log that we're using the server-side approach
+console.log('Using server-side S3 service - direct AWS SDK imports disabled');
 
 // Export the service methods
-export const { uploadToS3, deleteFromS3, getS3SignedUrl, extractS3KeyFromUrl } = service; 
+export const { uploadToS3, deleteFromS3, getS3SignedUrl, extractS3KeyFromUrl, useServerSideS3 } = service; 

@@ -3236,6 +3236,112 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add these new S3 API endpoints alongside your existing s3/test endpoint
+
+  // Get a signed URL for an S3 object
+  app.get('/api/s3/url/:key', async (req, res) => {
+    try {
+      const key = req.params.key;
+      
+      if (!key) {
+        return res.status(400).json({
+          success: false,
+          message: 'Key parameter is required'
+        });
+      }
+      
+      // Import the S3 service
+      const s3Service = (await import('./services/s3Service.js')).default;
+      
+      // Generate a signed URL
+      const result = await s3Service.generateSignedUrl(key);
+      
+      // Return the result
+      res.json(result);
+    } catch (error) {
+      console.error('Error generating S3 signed URL:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to generate signed URL',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Upload endpoint for files to S3
+  app.post('/api/s3/upload/:timelineId', upload.single('file'), async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+      
+      const timelineId = parseInt(req.params.timelineId);
+      const file = req.file;
+      
+      if (!file) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'No file uploaded' 
+        });
+      }
+      
+      // Generate a unique S3 key
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 15);
+      const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '-');
+      const key = `timelines/${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
+      
+      // Here you would upload the file to S3
+      // For now, we'll just return the key as if it was uploaded
+      
+      res.json({
+        success: true,
+        key: key,
+        message: 'Server-side upload simulation successful'
+      });
+    } catch (error) {
+      console.error('Error uploading to S3:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to upload file',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Delete an object from S3
+  app.delete('/api/s3/object/:key', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+      
+      const key = req.params.key;
+      
+      if (!key) {
+        return res.status(400).json({
+          success: false,
+          message: 'Key parameter is required'
+        });
+      }
+      
+      // Here you would delete the file from S3
+      // For now, we'll just return success
+      
+      res.json({
+        success: true,
+        message: 'Server-side delete simulation successful'
+      });
+    } catch (error) {
+      console.error('Error deleting from S3:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete file',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   const server = createServer(app);
   return server;
 }
