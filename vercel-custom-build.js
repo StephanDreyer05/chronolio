@@ -3,9 +3,9 @@
  * This Node.js script replaces the bash script for better Vercel compatibility
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 console.log('🚀 Starting Chronolio build for Vercel deployment...');
 

@@ -3,9 +3,9 @@
  * to ensure S3 functionality works properly in production
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 console.log('🔄 Running AWS SDK dependency fix for Vercel...');
 
@@ -24,7 +24,10 @@ try {
     
     // Attempt to import AWS SDK to verify it's available
     try {
-      require('@aws-sdk/client-s3');
+      // Using dynamic import for ES modules
+      import('@aws-sdk/client-s3').then(() => {
+        console.log('AWS SDK import successful');
+      });
       export const awsSdkImportSuccess = true;
     } catch (err) {
       export const awsSdkImportSuccess = false;
