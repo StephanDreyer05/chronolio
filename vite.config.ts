@@ -23,5 +23,14 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      // Externalize AWS SDK modules to prevent build errors
+      external: [
+        '@aws-sdk/client-s3',
+        '@aws-sdk/s3-request-presigner',
+        /^@aws-sdk\/.*/,  // Match all AWS SDK modules
+        /^@smithy\/.*/    // Match all Smithy modules (AWS SDK dependencies)
+      ]
+    }
   },
 });

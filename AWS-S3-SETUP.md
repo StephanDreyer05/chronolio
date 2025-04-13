@@ -10,6 +10,37 @@ The timeline image system is designed to work in two modes:
 
 The code is built to automatically fall back to server-side storage if AWS S3 configuration is missing or invalid.
 
+## Build Environment Configuration
+
+To ensure a smooth build process, we've implemented several techniques to prevent build errors:
+
+1. **Vite Configuration**: We've set up Rollup to externalize AWS SDK dependencies:
+   ```javascript
+   // In vite.config.ts
+   rollupOptions: {
+     external: [
+       '@aws-sdk/client-s3',
+       '@aws-sdk/s3-request-presigner',
+       /^@aws-sdk\/.*/,
+       /^@smithy\/.*/
+     ]
+   }
+   ```
+
+2. **Dynamic Imports**: The S3 service uses dynamic imports with Vite hints to prevent static analysis:
+   ```javascript
+   // Using @vite-ignore to prevent static analysis
+   const s3Module = await import(/* @vite-ignore */ '@aws-sdk/client-s3').catch(() => null);
+   ```
+
+3. **Environment Detection**: Code detects if it's running in Node.js vs browser environment:
+   ```javascript
+   // Skip AWS SDK import during build time
+   if (typeof window === 'undefined') {
+     return false; // Don't attempt import during build
+   }
+   ```
+
 ## Local Development with S3
 
 1. **Install AWS SDK Dependencies locally**:
@@ -64,6 +95,22 @@ For Vercel deployments, we recommend the following approach:
    - AWS SDK will not be part of the build process
    - If AWS SDK successfully loads at runtime and credentials are valid, S3 will be used
    - If AWS SDK fails to load or credentials are invalid, the system will fall back to server-side storage
+
+## Troubleshooting Build Errors
+
+If you encounter build errors related to AWS SDK:
+
+1. **Vite/Rollup Warnings**: If you see warnings about unresolved imports:
+   - Check that vite.config.ts has the correct external configuration
+   - Ensure s3Service.ts is using the `/* @vite-ignore */` comment in dynamic imports
+
+2. **Package.json Issues**: If npm ci fails with missing dependencies:
+   - Verify AWS SDK packages are NOT in package.json for production builds
+   - Use the update-package-deps.js script only for local development
+
+3. **Runtime Errors**: If S3 uploads fail at runtime:
+   - Check browser console for error messages from the fallback system
+   - Verify your AWS credentials are correctly set in Vercel environment variables
 
 ## How the Fallback System Works
 
