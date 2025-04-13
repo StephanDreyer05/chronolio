@@ -308,7 +308,7 @@ const SubscriptionSection = () => {
                     <div>
                       <h4 className="text-sm font-medium text-red-900 dark:text-red-200">No Active Subscription</h4>
                       <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                        You currently don't have an active subscription. Subscribe to a plan to access premium features.
+                        If you do have a subscription, please refresh this page. Otherwise subscribe to a plan to access premium features.
                       </p>
                     </div>
                   </div>
