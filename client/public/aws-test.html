@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AWS SDK Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.5;
+      padding: 2rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #333;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 0.5rem;
+    }
+    .panel {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .text-green-500 {
+      color: #22c55e;
+    }
+    .text-red-500 {
+      color: #ef4444;
+    }
+    button {
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2563eb;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 1rem;
+      overflow: auto;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>AWS SDK Availability Test</h1>
+  <p>This page tests whether the AWS SDK is correctly loaded in your deployment.</p>
+
+  <div class="panel">
+    <h2>AWS SDK Installation Status</h2>
+    <div id="aws-sdk-install-status">Checking...</div>
+    <script>
+      // Check if the AWS SDK installation verification file exists
+      fetch('/aws-sdk-installed.txt')
+        .then(response => {
+          if (response.ok) {
+            return response.text();
+          }
+          throw new Error('AWS SDK installation verification file not found');
+        })
+        .then(text => {
+          document.getElementById('aws-sdk-install-status').innerHTML = `
+            <p class="text-green-500">✅ AWS SDK installation verified</p>
+            <pre>${text}</pre>
+          `;
+        })
+        .catch(error => {
+          document.getElementById('aws-sdk-install-status').innerHTML = `
+            <p class="text-red-500">❌ AWS SDK installation verification failed: ${error.message}</p>
+          `;
+        });
+    </script>
+  </div>
+
+  <div class="panel">
+    <h2>Environment Variables</h2>
+    <div id="env-vars-status">Checking...</div>
+    <script>
+      // This section intentionally uses variable names that will be replaced by Vite during build
+      // to check the actual values received by the client at runtime
+      const envVarStatus = document.getElementById('env-vars-status');
+      
+      try {
+        // Create a safe representation of the environment variables (redacted for security)
+        const envVars = {
+          VITE_AWS_REGION: import.meta?.env?.VITE_AWS_REGION ? '✅ Set' : '❌ Not Set',
+          VITE_AWS_ACCESS_KEY_ID: import.meta?.env?.VITE_AWS_ACCESS_KEY_ID ? '✅ Set' : '❌ Not Set',
+          VITE_AWS_SECRET_ACCESS_KEY: import.meta?.env?.VITE_AWS_SECRET_ACCESS_KEY ? '✅ Set' : '❌ Not Set',
+          VITE_AWS_S3_BUCKET_NAME: import.meta?.env?.VITE_AWS_S3_BUCKET_NAME ? '✅ Set' : '❌ Not Set',
+        };
+        
+        let html = '<ul>';
+        for (const [key, value] of Object.entries(envVars)) {
+          html += `<li><strong>${key}:</strong> ${value}</li>`;
+        }
+        html += '</ul>';
+        
+        envVarStatus.innerHTML = html;
+      } catch (error) {
+        envVarStatus.innerHTML = `<p class="text-red-500">Error checking environment variables: ${error.message}</p>`;
+      }
+    </script>
+  </div>
+
+  <div class="panel">
+    <h2>AWS SDK Dynamic Import Test</h2>
+    <div id="aws-sdk-test-result">
+      <p>Click the button below to test AWS SDK dynamic imports</p>
+      <button id="run-aws-test">Run AWS SDK Test</button>
+    </div>
+    <script>
+      document.getElementById('run-aws-test').addEventListener('click', function() {
+        const script = document.createElement('script');
+        script.src = '/aws-check.js';
+        script.onerror = function() {
+          document.getElementById('aws-sdk-test-result').innerHTML = 
+            '<p class="text-red-500">❌ Failed to load AWS test script</p>';
+        };
+        document.body.appendChild(script);
+      });
+    </script>
+  </div>
+
+  <footer>
+    <p><small>This diagnostic page helps troubleshoot AWS SDK integration issues.</small></p>
+  </footer>
+</body>
+</html> 

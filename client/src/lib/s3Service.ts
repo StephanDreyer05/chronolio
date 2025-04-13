@@ -44,6 +44,14 @@ const service = {
   extractS3KeyFromUrl: fallbackService.extractS3KeyFromUrl.bind(fallbackService)
 };
 
+// Debug environment variables (redacted for security)
+console.log('S3 Environment Variables Check:', {
+  hasRegion: !!import.meta.env.VITE_AWS_REGION,
+  hasAccessKey: !!import.meta.env.VITE_AWS_ACCESS_KEY_ID,
+  hasSecretKey: !!import.meta.env.VITE_AWS_SECRET_ACCESS_KEY,
+  hasBucketName: !!import.meta.env.VITE_AWS_S3_BUCKET_NAME,
+});
+
 // Prevent Vite/Rollup from processing dynamic imports during build time
 // Use a build-time conditional to avoid even trying to import during build
 const canImportAwsSdk = (): boolean => {
@@ -66,14 +74,35 @@ const canImportAwsSdk = (): boolean => {
 if (canImportAwsSdk()) {
   (async function loadAwsSdk() {
     try {
+      console.log('Attempting to load AWS SDK...');
+      
       // Use string literals to prevent Vite from statically analyzing these imports
       // This ensures they're truly dynamic and won't be processed during build
       const s3ModulePath = '@aws-sdk/client-s3';
       const presignerModulePath = '@aws-sdk/s3-request-presigner';
       
+      // Verify the AWS SDK is available at runtime
+      try {
+        // Check if the global window object has the AWS SDK modules added by our post-build script
+        const awsSdkCheck = await fetch('/aws-sdk-installed.txt', { method: 'HEAD' })
+          .then(res => res.ok)
+          .catch(() => false);
+          
+        console.log('AWS SDK installation verification:', awsSdkCheck ? 'FOUND' : 'NOT FOUND');
+      } catch (checkError) {
+        console.warn('AWS SDK availability check failed:', checkError);
+      }
+      
       // Dynamically import AWS SDK modules
-      const s3Module = await import(/* @vite-ignore */ s3ModulePath).catch(() => null);
-      const presignerModule = await import(/* @vite-ignore */ presignerModulePath).catch(() => null);
+      const s3Module = await import(/* @vite-ignore */ s3ModulePath).catch((e) => {
+        console.error('Failed to import S3 client module:', e);
+        return null;
+      });
+      
+      const presignerModule = await import(/* @vite-ignore */ presignerModulePath).catch((e) => {
+        console.error('Failed to import S3 presigner module:', e);
+        return null;
+      });
       
       // If imports failed, stick with fallback implementation
       if (!s3Module || !presignerModule) {
@@ -81,12 +110,31 @@ if (canImportAwsSdk()) {
         return;
       }
       
+      console.log('AWS SDK modules loaded successfully');
+      
+      // Get environment variables
+      const region = import.meta.env.VITE_AWS_REGION || 'us-east-1';
+      const accessKeyId = import.meta.env.VITE_AWS_ACCESS_KEY_ID;
+      const secretAccessKey = import.meta.env.VITE_AWS_SECRET_ACCESS_KEY;
+      const bucketName = import.meta.env.VITE_AWS_S3_BUCKET_NAME;
+      
+      // Validate AWS credentials
+      if (!accessKeyId || !secretAccessKey) {
+        console.warn('AWS credentials not provided in environment variables');
+        return;
+      }
+      
+      if (!bucketName) {
+        console.warn('AWS S3 bucket name not set in environment variables');
+        return;
+      }
+      
       // Create S3 client from imported modules
       const s3Client = new s3Module.S3Client({
-        region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
+        region,
         credentials: {
-          accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID || '',
-          secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY || '',
+          accessKeyId,
+          secretAccessKey,
         }
       });
       
@@ -98,12 +146,15 @@ if (canImportAwsSdk()) {
         return `timelines/${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
       };
       
-      // Get bucket name from environment
-      const bucketName = import.meta.env.VITE_AWS_S3_BUCKET_NAME || '';
-      
-      if (!bucketName) {
-        console.warn('AWS S3 bucket name not set, using fallback implementation');
-        return;
+      // Verify S3 connection
+      try {
+        // Test S3 connection by listing buckets or a simple operation
+        const testCommand = new s3Module.ListBucketsCommand({});
+        await s3Client.send(testCommand);
+        console.log('AWS S3 connection verified successfully');
+      } catch (s3ConnectionError) {
+        console.error('AWS S3 connection test failed:', s3ConnectionError);
+        return; // Keep using fallback if connection fails
       }
       
       // Override service methods with real implementations

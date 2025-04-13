@@ -30,7 +30,19 @@ export default defineConfig({
         '@aws-sdk/s3-request-presigner',
         /^@aws-sdk\/.*/,  // Match all AWS SDK modules
         /^@smithy\/.*/    // Match all Smithy modules (AWS SDK dependencies)
-      ]
+      ],
+      // Tell Rollup what to do when it encounters these externalized modules
+      output: {
+        globals: {
+          '@aws-sdk/client-s3': 'AWS_SDK_S3',
+          '@aws-sdk/s3-request-presigner': 'AWS_SDK_Presigner'
+        }
+      }
+    },
+    // Ensure the AWS SDK imports are properly handled
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true
     }
   },
 });
