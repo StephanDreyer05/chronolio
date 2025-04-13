@@ -1,0 +1,169 @@
+Requests
+Lemon Squeezy API requests need to be made over HTTPS and follow the JSON:API spec.
+
+Requirements
+All API requests must be made over HTTPS to https://api.lemonsqueezy.com. Calls made over plain HTTP will fail. See API Errors for more information on error responses.
+
+For endpoints that require authentication, API requests must be authenticated.
+
+As per the JSON:API spec, the following headers must be included with all requests to the API:
+
+Accept: application/vnd.api+json
+Content-Type: application/vnd.api+json
+If you’re attempting to make a request with a null Origin header (e.g. from a sandboxed iframe in a Figma plugin) then you can use the https://api-cors-anywhere.lemonsqueezy.com API proxy URL instead.
+
+Authentication
+The Lemon Squeezy API uses API keys to authenticate requests. You can view and manage your API keys in your Lemon Squeezy account settings.
+
+Keep your API keys secure
+
+Do not share your API keys in publicly accessible areas such as GitHub, client-side code, and so forth.
+
+API keys can be created in both live and test modes:
+
+Live mode - Use this API key in your production application.
+Test mode - Use this API key in your development and testing environments. Read more about test mode →
+Generated API keys are valid for a year.
+
+Authenticated request example
+curl "https://api.lemonsqueezy.com/v1/users/me" \
+  -H 'Accept: application/vnd.api+json'  \
+  -H 'Content-Type: application/vnd.api+json' \
+  -H 'Authorization: Bearer {api_key}'
+Pagination
+The Lemon Squeezy API uses page-based pagination for all “list” endpoints. The responses will contain valid JSON:API pagination objects in the response. This includes a top-level links object with (URL-encoded) first, last, next and prev links, like this:
+
+{
+  ...
+  "links": {
+    "first": "https:\/\/api.lemonsqueezy.com\/v1\/orders?page%5Bnumber%5D=1&page%5Bsize%5D=10&sort=-createdAt",
+    "last": "https:\/\/api.lemonsqueezy.com\/v1\/orders?page%5Bnumber%5D=5&page%5Bsize%5D=10&sort=-createdAt",
+    "next": "https:\/\/api.lemonsqueezy.com\/v1\/orders?page%5Bnumber%5D=4&page%5Bsize%5D=10&sort=-createdAt",
+    "prev": "https:\/\/api.lemonsqueezy.com\/v1\/orders?page%5Bnumber%5D=2&page%5Bsize%5D=10&sort=-createdAt"
+  },
+  ...
+}
+You can use links.next to continue through the pages of your query. If next is not in the links object, you have reached the last page and similarly, prev is not present on the first page of results.
+
+The request also contains a pagination object in meta.page, which contains helpful pagination information for your current query:
+
+{
+  "meta": {
+    "page": {
+      "currentPage": 3,
+      "from": 21,
+      "lastPage": 5,
+      "perPage": 10,
+      "to": 30,
+      "total": 47
+    }
+  },
+  ...
+}
+Using this data, you can surface information like how many total results there are (meta.page.total) or how many pages there are (meta.page.lastPage).
+
+To make custom paginated queries, use the page[size] parameter to determine how many results to return per page (default is 10, minimum is 1 and maximum is 100) and page[number] to determine which page to retrieve.
+
+GET /v1/orders?page[number]=3&page[size]=100
+Filtering
+Lemon Squeezy “list” endpoints can be filtered by related objects or object values using query parameters. As per the JSON:API spec, filters should be applied as follows: ?filter[{parameter}]={value}
+
+Filtering subscriptions by product_id:
+
+GET /v1/subscriptions?filter[product_id]=2
+Filtering subscription invoices by subscription_id:
+
+GET /v1/subscription-invoices?filter[subscription_id]=6
+Multiple filters:
+
+GET /v1/subscription-invoices?filter[status]=open&filter[store_id]=1
+Related resources
+To help cut down on multiple requests, the Lemon Squeezy API supports the JSON:API spec for including related resources. Related resources can be included in the same response by using the include query parameter.
+
+For example, this request will include all Variants that belong to the Product with the id of 100:
+
+GET /v1/products/100?include=variants
+The response will contain a new top-level included array which will contain the related resources.
+
+{
+  "meta": {
+    ...
+  },
+  "jsonapi": {
+    ...
+  },
+  "links": {
+    ...
+  },
+  "data": [
+    {...},
+    {...},
+    {...}
+  ],
+  "included": [
+    {
+      "type": "variants",
+      "id": "1",
+      "attributes": {
+        "product_id": 1,
+        "name": "Default",
+        "slug": "537b22ba-fcc9-452a-9021-c3cabe3985cf",
+        "description": "<p>This is the variant description.</p>",
+        "links": [],
+        "price": 999,
+        "is_subscription": true,
+        "interval": "month",
+        "interval_count": 1,
+        "has_free_trial": false,
+        "trial_interval": "day",
+        "trial_interval_count": 30,
+        "pay_what_you_want": false,
+        "min_price": 0,
+        "suggested_price": 0,
+        "has_license_keys": false,
+        "license_activation_limit": 5,
+        "is_license_limit_unlimited": false,
+        "license_length_value": 1,
+        "license_length_unit": "years",
+        "is_license_length_unlimited": false,
+        "sort": 0,
+        "status": "pending",
+        "status_formatted": "Pending",
+        "created_at": "2021-05-27T12:54:47.000000Z",
+        "updated_at": "2021-07-14T11:25:24.000000Z",
+        "test_mode": false
+      },
+      "relationships": {
+        "product": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/variants/1/product",
+            "self": "https://api.lemonsqueezy.com/v1/variants/1/relationships/product"
+          }
+        },
+        "files": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/variants/1/files",
+            "self": "https://api.lemonsqueezy.com/v1/variants/1/relationships/files"
+          }
+        },
+        "price-model": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/variants/1/price-model",
+            "self": "https://api.lemonsqueezy.com/v1/variants/1/relationships/price-model"
+          }
+        }
+      },
+      "links": {
+        "self": "https://api.lemonsqueezy.com/v1/variants/1"
+      }
+    },
+    {...},
+    {...}
+  ]
+}
+Nested queries
+It’s also possible to use nested queries to retrieve related objects without the parent object. You can find nested query request URLs in each object’s relationships object.
+
+This example queries all Variants for a specific Product.
+
+GET /v1/products/100/variants

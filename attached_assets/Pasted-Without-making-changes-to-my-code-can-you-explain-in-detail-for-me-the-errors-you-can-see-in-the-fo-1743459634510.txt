@@ -1,0 +1,200 @@
+Without making changes to my code, can you explain in detail for me the errors you can see in the following log. 
+
+[23:54:07.456] Cloning github.com/StephanDreyer05/Chronolio (Branch: Deployed_Vercel, Commit: cd66638)
+[23:54:09.548] Cloning completed: 2.092s
+[23:54:09.828] Restored build cache from previous deployment (J6z9rZhv8QFZwPxGhyJAqRB19sYD)
+[23:54:10.014] Running build in Washington, D.C., USA (East) – iad1
+[23:54:10.882] Running "vercel build"
+[23:54:11.375] Vercel CLI 41.4.1
+[23:54:12.577] Running "install" command: `npm ci`...
+[23:54:22.696] npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+[23:54:22.746] npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+[23:54:26.538] npm warn deprecated react-beautiful-dnd@13.1.1: react-beautiful-dnd is now deprecated. Context and options: https://github.com/atlassian/react-beautiful-dnd/issues/2672
+
+Runtime log:
+
+
+[23:54:34.483] 
+[23:54:34.483] added 618 packages, and audited 619 packages in 21s
+[23:54:34.484] 
+[23:54:34.485] 68 packages are looking for funding
+[23:54:34.485]   run `npm fund` for details
+[23:54:34.519] 
+[23:54:34.519] 9 vulnerabilities (7 moderate, 2 high)
+[23:54:34.520] 
+[23:54:34.520] To address issues that do not require attention, run:
+[23:54:34.520]   npm audit fix
+[23:54:34.521] 
+[23:54:34.521] To address all issues possible (including breaking changes), run:
+[23:54:34.521]   npm audit fix --force
+[23:54:34.522] 
+[23:54:34.522] Some issues need review, and may require choosing
+[23:54:34.522] a different dependency.
+[23:54:34.523] 
+[23:54:34.523] Run `npm audit` for details.
+[23:54:35.454] Building Chronolio frontend for Vercel deployment...
+[23:54:35.454] Installing build dependencies...
+[23:54:43.656] npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+[23:54:43.929] npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+[23:54:46.652] npm warn deprecated react-beautiful-dnd@13.1.1: react-beautiful-dnd is now deprecated. Context and options: https://github.com/atlassian/react-beautiful-dnd/issues/2672
+[23:54:51.952] 
+[23:54:51.953] added 618 packages, and audited 619 packages in 16s
+[23:54:51.954] 
+[23:54:51.954] 68 packages are looking for funding
+[23:54:51.954]   run `npm fund` for details
+[23:54:52.010] 
+[23:54:52.011] 9 vulnerabilities (7 moderate, 2 high)
+[23:54:52.012] 
+[23:54:52.012] To address issues that do not require attention, run:
+[23:54:52.012]   npm audit fix
+[23:54:52.012] 
+[23:54:52.012] To address all issues possible (including breaking changes), run:
+[23:54:52.013]   npm audit fix --force
+[23:54:52.013] 
+[23:54:52.013] Some issues need review, and may require choosing
+[23:54:52.013] a different dependency.
+[23:54:52.013] 
+[23:54:52.013] Run `npm audit` for details.
+[23:54:52.076] Cleaning up previous build artifacts...
+[23:54:52.090] Creating physical src directory for Vite...
+[23:54:52.102] Successfully created src/main.tsx
+[23:54:52.102] Creating server configuration with allowed hosts for Vercel...
+[23:54:52.107] Building the frontend with Vite...
+[23:54:52.627] [36mvite v5.4.15 [32mbuilding for production...[36m[39m
+[23:54:52.702] transforming...
+[23:55:07.821] [32m✓[39m 3116 modules transformed.
+[23:55:08.732] rendering chunks...
+[23:55:09.827] computing gzip size...
+[23:55:09.914] [2m../dist/public/[22m[32mindex.html                          [39m[1m[2m    1.59 kB[22m[1m[22m[2m │ gzip:   0.62 kB[22m
+[23:55:09.915] [2m../dist/public/[22m[2massets/[22m[32mCHRONOLIO logo-lHyOVjAk.png  [39m[1m[2m   56.43 kB[22m[1m[22m
+[23:55:09.915] [2m../dist/public/[22m[2massets/[22m[35mindex-D_100IuN.css           [39m[1m[2m  106.54 kB[22m[1m[22m[2m │ gzip:  16.71 kB[22m
+[23:55:09.916] [2m../dist/public/[22m[2massets/[22m[36mpurify.es-C_uT9hQ1.js        [39m[1m[2m   21.98 kB[22m[1m[22m[2m │ gzip:   8.74 kB[22m
+[23:55:09.916] [2m../dist/public/[22m[2massets/[22m[36mindex.es-zmqN32mv.js         [39m[1m[2m  149.98 kB[22m[1m[22m[2m │ gzip:  51.27 kB[22m
+[23:55:09.916] [2m../dist/public/[22m[2massets/[22m[36mhtml2canvas.esm-CBrSDip1.js  [39m[1m[2m  201.42 kB[22m[1m[22m[2m │ gzip:  48.03 kB[22m
+[23:55:09.917] [2m../dist/public/[22m[2massets/[22m[36mindex-D3mEqTNR.js            [39m[1m[33m2,106.51 kB[39m[22m[2m │ gzip: 614.72 kB[22m
+[23:55:09.917] [33m
+[23:55:09.917] (!) Some chunks are larger than 500 kB after minification. Consider:
+[23:55:09.917] - Using dynamic import() to code-split the application
+[23:55:09.917] - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+[23:55:09.918] - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[23:55:09.924] [32m✓ built in 17.27s[39m
+[23:55:10.044] Checking build output directory structure...
+[23:55:10.049] dist
+[23:55:10.049] dist/public
+[23:55:10.050] dist/public/assets
+[23:55:10.050] Checking build output files...
+[23:55:10.053] dist/public/assets/CHRONOLIO logo-lHyOVjAk.png
+[23:55:10.054] dist/public/assets/html2canvas.esm-CBrSDip1.js
+[23:55:10.056] dist/public/assets/index-D3mEqTNR.js
+[23:55:10.056] dist/public/assets/index-D_100IuN.css
+[23:55:10.057] dist/public/assets/index.es-zmqN32mv.js
+[23:55:10.057] dist/public/assets/purify.es-C_uT9hQ1.js
+[23:55:10.057] dist/public/index.html
+[23:55:10.061] Setting up Vercel output directory structure...
+[23:55:10.061] Running database schema compatibility fixes for Vercel...
+[23:55:10.064] Schema already contains last_modified field, no patching needed
+[23:55:10.065] Fixing import paths in vercel.js for Vercel deployment...
+[23:55:10.120] 🔧 Fixing import paths in vercel.js for Vercel deployment...
+[23:55:10.121] ✅ No changes needed - all import paths already have correct extensions
+[23:55:10.121] 
+[23:55:10.122] 🎉 Import paths fixed successfully!
+[23:55:10.122] Remember to commit these changes before deploying to Vercel.
+[23:55:10.134] Router paths fixed for Vercel compatibility
+[23:55:10.136] Copying build files to output directory...
+[23:55:10.142] Found build output in dist/public/
+[23:55:10.148] Files copied successfully to public/
+[23:55:10.148] Files in public directory:
+[23:55:10.151] public/assets/CHRONOLIO logo-lHyOVjAk.png
+[23:55:10.152] public/assets/html2canvas.esm-CBrSDip1.js
+[23:55:10.152] public/assets/index-D3mEqTNR.js
+[23:55:10.152] public/assets/index-D_100IuN.css
+[23:55:10.152] public/assets/index.es-zmqN32mv.js
+[23:55:10.152] public/assets/purify.es-C_uT9hQ1.js
+[23:55:10.152] public/index.html
+[23:55:10.153] Build complete! Files to be deployed:
+[23:55:10.157] public/assets/CHRONOLIO logo-lHyOVjAk.png
+[23:55:10.157] public/assets/html2canvas.esm-CBrSDip1.js
+[23:55:10.157] public/assets/index-D3mEqTNR.js
+[23:55:10.157] public/assets/index-D_100IuN.css
+[23:55:10.158] public/assets/index.es-zmqN32mv.js
+[23:55:10.158] public/assets/purify.es-C_uT9hQ1.js
+[23:55:10.158] public/index.html
+[23:55:10.160] Ready for Vercel deployment.
+[23:55:10.215] Installing dependencies...
+[23:55:11.635] 
+[23:55:11.636] up to date in 1s
+[23:55:11.636] 
+[23:55:11.637] 68 packages are looking for funding
+[23:55:11.637]   run `npm fund` for details
+[23:55:12.081] Using TypeScript 5.6.3 (local user-provided)
+[23:55:28.610] server/routes.ts(453,51): error TS2769: No overload matches this call.
+[23:55:28.610]   Overload 1 of 2, '(value: { userId: number | SQL<unknown> | Placeholder<string, any>; title: string | SQL<unknown> | Placeholder<string, any>; events: SQL<unknown> | { startTime: string; ... 5 more ...; category?: string | undefined; }[] | Placeholder<...>; ... 4 more ...; isPublic?: boolean | ... 2 more ... | undefined; }): PgInsertBase<...>', gave the following error.
+[23:55:28.611]     Object literal may only specify known properties, and 'last_modified' does not exist in type '{ userId: number | SQL<unknown> | Placeholder<string, any>; title: string | SQL<unknown> | Placeholder<string, any>; events: SQL<unknown> | { startTime: string; ... 5 more ...; category?: string | undefined; }[] | Placeholder<...>; ... 4 more ...; isPublic?: boolean | ... 2 more ... | undefined; }'.
+[23:55:28.611]   Overload 2 of 2, '(values: { userId: number | SQL<unknown> | Placeholder<string, any>; title: string | SQL<unknown> | Placeholder<string, any>; events: SQL<unknown> | { startTime: string; ... 5 more ...; category?: string | undefined; }[] | Placeholder<...>; ... 4 more ...; isPublic?: boolean | ... 2 more ... | undefined; }[]): PgInsertBase<...>', gave the following error.
+[23:55:28.611]     Object literal may only specify known properties, and 'userId' does not exist in type '{ userId: number | SQL<unknown> | Placeholder<string, any>; title: string | SQL<unknown> | Placeholder<string, any>; events: SQL<unknown> | { startTime: string; ... 5 more ...; category?: string | undefined; }[] | Placeholder<...>; ... 4 more ...; isPublic?: boolean | ... 2 more ... | undefined; }[]'.
+[23:55:28.611] server/routes.ts(505,11): error TS2353: Object literal may only specify known properties, and 'last_modified' does not exist in type '{ userId?: number | SQL<unknown> | PgColumn<ColumnBaseConfig<ColumnDataType, string>, {}, {}> | undefined; title?: string | SQL<unknown> | PgColumn<...> | undefined; ... 5 more ...; isPublic?: boolean | ... 2 more ... | undefined; }'.
+[23:55:28.611] server/routes.ts(738,75): error TS18046: 'error' is of type 'unknown'.
+[23:55:28.612] server/routes.ts(879,48): error TS2353: Object literal may only specify known properties, and 'last_modified' does not exist in type '{ timelineId?: number | SQL<unknown> | PgColumn<ColumnBaseConfig<ColumnDataType, string>, {}, {}> | undefined; order?: number | SQL<...> | PgColumn<...> | undefined; ... 4 more ...; caption?: string | ... 3 more ... | undefined; }'.
+[23:55:28.612] server/routes.ts(905,53): error TS2353: Object literal may only specify known properties, and 'last_modified' does not exist in type '{ timelineId?: number | SQL<unknown> | PgColumn<ColumnBaseConfig<ColumnDataType, string>, {}, {}> | undefined; order?: number | SQL<...> | PgColumn<...> | undefined; ... 4 more ...; caption?: string | ... 3 more ... | undefined; }'.
+[23:55:28.612] server/routes.ts(907,14): error TS2339: Property 'where' does not exist on type 'Omit<PgUpdateBase<PgTableWithColumns<{ name: "timeline_images"; schema: undefined; columns: { id: PgColumn<{ name: "id"; tableName: "timeline_images"; dataType: "number"; columnType: "PgSerial"; data: number; driverParam: number; notNull: true; ... 7 more ...; generated: undefined; }, {}, {}>; ... 5 more ...; update...'.
+[23:55:28.612] server/routes.ts(1051,10): error TS2769: No overload matches this call.
+[23:55:28.613]   Overload 1 of 2, '(value: { name: string | SQL<unknown> | Placeholder<string, any>; userId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; customFields?: SQL<...> | ... 2 more ... | undefined; }): PgInsertBase<...>', gave the following error.
+[23:55:28.613]     Object literal may only specify known properties, and 'last_modified' does not exist in type '{ name: string | SQL<unknown> | Placeholder<string, any>; userId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; customFields?: SQL<...> | ... 2 more ......'.
+[23:55:28.613]   Overload 2 of 2, '(values: { name: string | SQL<unknown> | Placeholder<string, any>; userId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; customFields?: SQL<...> | ... 2 more ... | undefined; }[]): PgInsertBase<...>', gave the following error.
+[23:55:28.613]     Object literal may only specify known properties, and 'userId' does not exist in type '{ name: string | SQL<unknown> | Placeholder<string, any>; userId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; customFields?: SQL<...> | ... 2 more ......'.
+[23:55:28.614] server/routes.ts(1098,11): error TS2353: Object literal may only specify known properties, and 'last_modified' does not exist in type '{ name?: string | SQL<unknown> | PgColumn<ColumnBaseConfig<ColumnDataType, string>, {}, {}> | undefined; userId?: number | SQL<unknown> | PgColumn<...> | undefined; id?: number | ... 2 more ... | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; customFields?: S...'.
+[23:55:28.614] server/routes.ts(1141,11): error TS2353: Object literal may only specify known properties, and 'last_modified' does not exist in type '{ name?: string | SQL<unknown> | PgColumn<ColumnBaseConfig<ColumnDataType, string>, {}, {}> | undefined; userId?: number | SQL<unknown> | PgColumn<...> | undefined; id?: number | ... 2 more ... | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; customFields?: S...'.
+[23:55:28.614] server/routes.ts(1218,11): error TS2353: Object literal may only specify known properties, and 'last_modified' does not exist in type '{ name?: string | SQL<unknown> | PgColumn<ColumnBaseConfig<ColumnDataType, string>, {}, {}> | undefined; userId?: number | SQL<unknown> | PgColumn<...> | undefined; id?: number | ... 2 more ... | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; customFields?: S...'.
+[23:55:28.615] server/routes.ts(1265,9): error TS2353: Object literal may only specify known properties, and 'customFields' does not exist in type '{ type: string; color: string; }'.
+[23:55:28.615] server/routes.ts(1315,23): error TS2339: Property 'where' does not exist on type 'Omit<PgSelectBase<"vendors", { vendor: PgTableWithColumns<{ name: "vendors"; schema: undefined; columns: { id: PgColumn<{ name: "id"; tableName: "vendors"; dataType: "number"; columnType: "PgSerial"; data: number; driverParam: number; ... 8 more ...; generated: undefined; }, {}, {}>; ... 11 more ...; updatedAt: PgCo...'.
+[23:55:28.615] server/routes.ts(1387,10): error TS2769: No overload matches this call.
+[23:55:28.615]   Overload 1 of 2, '(value: { name: string | SQL<unknown> | Placeholder<string, any>; userId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; ... 9 more ...; notes?: string | ... 3 more ... | undefined; }): PgInsertBase<...>', gave the following error.
+[23:55:28.615]     Object literal may only specify known properties, and 'last_modified' does not exist in type '{ name: string | SQL<unknown> | Placeholder<string, any>; userId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; ... 9 more ...; notes?: string | ... 3 more ... | undefined; }'.
+[23:55:28.616]   Overload 2 of 2, '(values: { name: string | SQL<unknown> | Placeholder<string, any>; userId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; ... 9 more ...; notes?: string | ... 3 more ... | undefined; }[]): PgInsertBase<...>', gave the following error.
+[23:55:28.616]     Object literal may only specify known properties, and 'userId' does not exist in type '{ name: string | SQL<unknown> | Placeholder<string, any>; userId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<string, any> | undefined; ... 9 more ...; notes?: string | ... 3 more ... | undefined; }[]'.
+[23:55:28.616] server/routes.ts(1497,11): error TS2353: Object literal may only specify known properties, and 'last_modified' does not exist in type '{ name?: string | SQL<unknown> | PgColumn<ColumnBaseConfig<ColumnDataType, string>, {}, {}> | undefined; userId?: number | SQL<unknown> | PgColumn<...> | undefined; ... 10 more ...; notes?: string | ... 3 more ... | undefined; }'.
+[23:55:28.616] server/routes.ts(1655,10): error TS2769: No overload matches this call.
+[23:55:28.617]   Overload 1 of 2, '(value: { timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }): PgInsertBase<...>', gave the following error.
+[23:55:28.617]     Object literal may only specify known properties, and 'last_modified' does not exist in type '{ timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }'.
+[23:55:28.617]   Overload 2 of 2, '(values: { timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }[]): PgInsertBase<...>', gave the following error.
+[23:55:28.617]     Object literal may only specify known properties, and 'timelineId' does not exist in type '{ timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }[]'.
+[23:55:28.617] server/routes.ts(1830,10): error TS2769: No overload matches this call.
+[23:55:28.618]   Overload 1 of 2, '(value: { vendorId: number | SQL<unknown> | Placeholder<string, any>; timelineEventId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }): PgInsertBase<...>', gave the following error.
+[23:55:28.618]     Object literal may only specify known properties, and 'last_modified' does not exist in type '{ vendorId: number | SQL<unknown> | Placeholder<string, any>; timelineEventId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }'.
+[23:55:28.618]   Overload 2 of 2, '(values: { vendorId: number | SQL<unknown> | Placeholder<string, any>; timelineEventId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }[]): PgInsertBase<...>', gave the following error.
+[23:55:28.618]     Object literal may only specify known properties, and 'timelineEventId' does not exist in type '{ vendorId: number | SQL<unknown> | Placeholder<string, any>; timelineEventId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }[]'.
+[23:55:28.619] server/routes.ts(1942,10): error TS2769: No overload matches this call.
+[23:55:28.619]   Overload 1 of 2, '(value: { vendorId: number | SQL<unknown> | Placeholder<string, any>; timelineEventId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }): PgInsertBase<...>', gave the following error.
+[23:55:28.619]     Object literal may only specify known properties, and 'last_modified' does not exist in type '{ vendorId: number | SQL<unknown> | Placeholder<string, any>; timelineEventId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }'.
+[23:55:28.623]   Overload 2 of 2, '(values: { vendorId: number | SQL<unknown> | Placeholder<string, any>; timelineEventId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }[]): PgInsertBase<...>', gave the following error.
+[23:55:28.623]     Object literal may only specify known properties, and 'timelineEventId' does not exist in type '{ vendorId: number | SQL<unknown> | Placeholder<string, any>; timelineEventId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }[]'.
+[23:55:28.624] server/routes.ts(1986,42): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+[23:55:28.624] server/routes.ts(1997,61): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+[23:55:28.624] server/routes.ts(1998,54): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+[23:55:28.624] server/routes.ts(2056,10): error TS2769: No overload matches this call.
+[23:55:28.624]   Overload 1 of 2, '(value: { timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }): PgInsertBase<...>', gave the following error.
+[23:55:28.625]     Object literal may only specify known properties, and 'last_modified' does not exist in type '{ timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }'.
+[23:55:28.625]   Overload 2 of 2, '(values: { timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }[]): PgInsertBase<...>', gave the following error.
+[23:55:28.625]     Object literal may only specify known properties, and 'timelineId' does not exist in type '{ timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }[]'.
+[23:55:28.625] server/routes.ts(2139,29): error TS7006: Parameter 'vendorId' implicitly has an 'any' type.
+[23:55:28.625] server/routes.ts(2151,65): error TS7006: Parameter 'id' implicitly has an 'any' type.
+[23:55:28.625] server/routes.ts(2228,13): error TS7022: 'timelineVendors' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+[23:55:28.626] server/routes.ts(2233,15): error TS2448: Block-scoped variable 'timelineVendors' used before its declaration.
+[23:55:28.626] server/routes.ts(2234,31): error TS2448: Block-scoped variable 'timelineVendors' used before its declaration.
+[23:55:28.626] server/routes.ts(2236,19): error TS2448: Block-scoped variable 'timelineVendors' used before its declaration.
+[23:55:28.626] server/routes.ts(2238,55): error TS7031: Binding element 'vendor' implicitly has an 'any' type.
+[23:55:28.626] server/routes.ts(2238,63): error TS7031: Binding element 'vendorType' implicitly has an 'any' type.
+[23:55:28.627] 
+[23:55:28.990] server/auth.ts(5,23): error TS7016: Could not find a declaration file for module 'connect-pg-simple'. '/vercel/path0/node_modules/connect-pg-simple/index.js' implicitly has an 'any' type.
+[23:55:28.990]   Try `npm i --save-dev @types/connect-pg-simple` if it exists or add a new declaration (.d.ts) file containing `declare module 'connect-pg-simple';`
+[23:55:28.991] server/auth.ts(470,54): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+[23:55:28.991]   Type 'null' is not assignable to type 'string'.
+[23:55:28.991] 
+[23:55:34.377] Build Completed in /vercel/output [1m]
+[23:55:34.800] Deploying outputs...
+[23:55:39.947] 
+[23:55:40.222] Deployment completed
+[23:56:16.796] Uploading build cache [104.18 MB]...
+[23:56:18.410] Build cache uploaded: 1.622s
+
+Runtime log image attached.

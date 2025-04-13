@@ -1,0 +1,86 @@
+      {!isTemplate && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Button
+              variant={bulkEditMode ? "default" : "outline"}
+              onClick={() => {
+                dispatch(setBulkEditMode(!bulkEditMode));
+                dispatch(clearSelection());
+              }}
+              className="font-serif"
+            >
+              {bulkEditMode ? "Exit Bulk Edit" : "Bulk Edit"}
+            </Button>
+            {bulkEditMode && (
+              <>
+                <div className="flex items-center gap-2 ml-4">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <ChevronLeft className="w-4 h-4 mr-1" /> Move Earlier
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      {timeAdjustments.map((minutes) => (
+                        <DropdownMenuItem
+                          key={minutes}
+                          onClick={() => dispatch(adjustSelectedTimes({ minutes: -minutes }))}
+                        >
+                          {minutes} minutes
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <ChevronRight className="w-4 h-4 mr-1" /> Move Later
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      {timeAdjustments.map((minutes) => (
+                        <DropdownMenuItem
+                          key={minutes}
+                          onClick={() => dispatch(adjustSelectedTimes({ minutes }))}
+                        >
+                          {minutes} minutes
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      if (selectedItems.length > 0) {
+                        dispatch(deleteSelectedItems());
+                        dispatch(setBulkEditMode(false));
+                      }
+                    }}
+                    disabled={selectedItems.length === 0}
+                  >
+                    <TrashIcon className="w-4 h-4 mr-1" /> Delete Selected
+                  </Button>
+                </div>
+                <div className="ml-auto text-sm text-muted-foreground">
+                  {selectedItems.length} items selected
+                </div>
+              </>
+            )}
+          </div>
+          {bulkEditMode && localShowCategories && (
+            <div className="flex flex-wrap gap-2">
+              {categories.map((category) => (
+                <Button
+                  key={category.id}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => dispatch(selectAllInCategory(category.name))}
+                >
+                  Select all in {category.name}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}

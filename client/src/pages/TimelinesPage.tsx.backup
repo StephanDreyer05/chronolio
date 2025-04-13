@@ -1,0 +1,566 @@
+import { Link } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Plus, Copy, Edit2, Trash2, ArrowUpDown, Calendar as CalendarIcon, List, Search } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format, parseISO } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
+import { CalendarView } from "@/components/timeline/CalendarView";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { MainNav } from "@/components/MainNav";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useSelector } from 'react-redux';
+import { RootState } from '@/store/settingsSlice';
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useSidebar } from "@/hooks/use-sidebar";
+import { cn } from "@/lib/utils";
+
+const formatUpdatedAt = (dateString?: string) => {
+  if (!dateString) return 'Not available';
+  // Simple date formatting from timestamp
+  const date = new Date(dateString);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+};
+
+type SortOption = 'date-asc' | 'date-desc' | 'title-asc' | 'title-desc' | 'updated-asc' | 'updated-desc';
+type ViewType = 'list' | 'calendar';
+
+type TimelineGroup = {
+  title: string;
+  timelines: Array<{
+    id: number;
+    title: string;
+    date: string;
+    type?: string;
+    location?: string;
+    updated_at: string;
+    last_modified: string;
+  }>;
+};
+
+export default function TimelinesPage() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [viewType, setViewType] = useState<ViewType>('list');
+  const [hidePastEvents, setHidePastEvents] = useState(() => {
+    const stored = localStorage.getItem('hidePastEvents');
+    return stored === null ? true : JSON.parse(stored);
+  });
+  const { eventTypes, defaultSorting } = useSelector((state: RootState) => state.settings);
+  const [sortBy, setSortBy] = useState<SortOption>(defaultSorting || 'date-asc');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const { collapsed } = useSidebar();
+  const currentDate = format(new Date(), "EEEE, dd MMMM yyyy");
+
+  useEffect(() => {
+    localStorage.setItem('hidePastEvents', JSON.stringify(hidePastEvents));
+  }, [hidePastEvents]);
+
+  const { data: timelines, isLoading } = useQuery<Array<{
+    id: number;
+    title: string;
+    date: string;
+    type?: string;
+    location?: string;
+    updated_at: string;
+    last_modified: string;
+  }>>({
+    queryKey: ['/api/timelines'],
+    queryFn: async () => {
+      const response = await fetch('/api/timelines');
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    },
+  });
+
+  const deleteTimelineMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await fetch(`/api/timelines/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['/api/timelines'],
+      });
+      toast({
+        title: "Timeline deleted",
+        description: "The timeline has been successfully deleted",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete timeline",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const duplicateTimelineMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await fetch(`/api/timelines/${id}/duplicate`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['/api/timelines'],
+      });
+      toast({
+        title: "Timeline duplicated",
+        description: "The timeline has been successfully duplicated",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to duplicate timeline",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteTimeline = (id: number) => {
+    deleteTimelineMutation.mutate(id);
+  };
+
+  const handleDuplicateTimeline = (id: number) => {
+    duplicateTimelineMutation.mutate(id);
+  };
+
+  const getEventTypeColor = (type?: string) => {
+    if (!type) return 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300';
+    
+    const typeObj = eventTypes?.find((t: any) => t.type === type);
+    if (!typeObj) return 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300';
+    
+    return typeObj.color ? `${typeObj.color} text-white` : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300';
+  };
+
+  const filteredTimelines = (timelines || [])
+    .filter((timeline) => {
+      // Filter by search query
+      const titleMatch = timeline.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const locationMatch = timeline.location ? timeline.location.toLowerCase().includes(searchQuery.toLowerCase()) : false;
+      const typeMatch = timeline.type ? timeline.type.toLowerCase().includes(searchQuery.toLowerCase()) : false;
+      
+      // Filter by type
+      const typeFilterMatch = typeFilter === 'all' || timeline.type === typeFilter;
+      
+      // Filter past events
+      const dateMatch = !hidePastEvents || new Date(timeline.date) >= new Date(new Date().setHours(0, 0, 0, 0));
+      
+      return (titleMatch || locationMatch || typeMatch) && typeFilterMatch && dateMatch;
+    })
+    .sort((a, b) => {
+      // Sort by the selected sort option
+      switch (sortBy) {
+        case 'date-asc':
+          return new Date(a.date).getTime() - new Date(b.date).getTime();
+        case 'date-desc':
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        case 'title-asc':
+          return a.title.localeCompare(b.title);
+        case 'title-desc':
+          return b.title.localeCompare(a.title);
+        case 'updated-asc':
+          return new Date(a.last_modified).getTime() - new Date(b.last_modified).getTime();
+        case 'updated-desc':
+          return new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime();
+        default:
+          return 0;
+      }
+    });
+
+  const getActiveTimelinesCount = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return (timelines || [])
+      .filter(timeline => new Date(timeline.date) >= today)
+      .length;
+  };
+
+  // Group timelines by month if sorting by date
+  const groupedTimelines: TimelineGroup[] = (() => {
+    if (sortBy === 'date-asc' || sortBy === 'date-desc') {
+      const groups: Record<string, TimelineGroup> = {};
+      
+      filteredTimelines.forEach(timeline => {
+        const date = new Date(timeline.date);
+        const month = format(date, 'MMMM yyyy');
+        
+        if (!groups[month]) {
+          groups[month] = { title: month, timelines: [] };
+        }
+        
+        groups[month].timelines.push(timeline);
+      });
+      
+      return Object.values(groups);
+    } else if (sortBy === 'updated-asc' || sortBy === 'updated-desc') {
+      const groups: Record<string, TimelineGroup> = {
+        'Recently Updated': { title: 'Recently Updated', timelines: [] },
+        'Older Updates': { title: 'Older Updates', timelines: [] }
+      };
+      
+      const now = new Date();
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      
+      filteredTimelines.forEach(timeline => {
+        const lastModified = new Date(timeline.last_modified);
+        const groupKey = lastModified >= oneWeekAgo ? 'Recently Updated' : 'Older Updates';
+        groups[groupKey].timelines.push(timeline);
+      });
+      
+      // Remove empty groups
+      return Object.values(groups).filter(group => group.timelines.length > 0);
+    } else {
+      // For title sorting, don't use groups
+      return [{
+        title: '',
+        timelines: filteredTimelines
+      }];
+    }
+  })();
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <MainNav />
+      <div className={cn(
+        "transition-all duration-300 min-h-screen",
+        collapsed ? "ml-[70px]" : "ml-[250px]"
+      )}>
+        <header className="border-b bg-white dark:bg-slate-800">
+          <div className="container mx-auto px-6 py-8">
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl font-bold text-foreground">Timelines</h1>
+              <Button
+                asChild
+                className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md"
+              >
+                <Link href="/timeline/new">
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Timeline
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <main className="container mx-auto px-6 py-8">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-muted-foreground mt-1">
+                  {currentDate}
+                </p>
+              </div>
+
+              <div className="grid gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Total Timelines</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center">
+                        <div className="text-2xl font-bold">{timelines?.length || 0}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Active Timelines</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center">
+                        <div className="text-2xl font-bold">{getActiveTimelinesCount()}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Types</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center">
+                        <div className="text-2xl font-bold">{eventTypes?.length || 0}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">View</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center space-x-1">
+                        <Button
+                          variant={viewType === 'list' ? 'default' : 'outline'}
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setViewType('list')}
+                        >
+                          <List className="h-4 w-4 mr-1" />
+                          List
+                        </Button>
+                        <Button
+                          variant={viewType === 'calendar' ? 'default' : 'outline'}
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setViewType('calendar')}
+                        >
+                          <CalendarIcon className="h-4 w-4 mr-1" />
+                          Calendar
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline">
+                      <ArrowUpDown className="h-4 w-4 mr-2" />
+                      Sort by
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setSortBy('date-asc')}>
+                      Date (earliest)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy('date-desc')}>
+                      Date (latest)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy('title-asc')}>
+                      Name (A-Z)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy('title-desc')}>
+                      Name (Z-A)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy('updated-desc')}>
+                      Recently Updated
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy('updated-asc')}>
+                      Oldest Updated
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <Card className="bg-white dark:bg-slate-800 border shadow-sm overflow-hidden">
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Input
+                        placeholder="Search timelines..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Select value={typeFilter} onValueChange={setTypeFilter}>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Filter by type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        {eventTypes?.map((type: any) => (
+                          <SelectItem key={type.type} value={type.type}>
+                            {type.type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="hide-past-events"
+                        checked={hidePastEvents}
+                        onCheckedChange={setHidePastEvents}
+                      />
+                      <Label htmlFor="hide-past-events">Hide past events</Label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {viewType === 'list' ? (
+                <div className="space-y-6">
+                  {isLoading ? (
+                    <div className="text-center py-12">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-4"></div>
+                      <p className="text-muted-foreground">Loading timelines...</p>
+                    </div>
+                  ) : filteredTimelines.length === 0 ? (
+                    <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-lg border shadow-sm">
+                      <p className="text-muted-foreground mb-4">No timelines found</p>
+                      <Button
+                        asChild
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md"
+                      >
+                        <Link href="/timeline/new">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create your first timeline
+                        </Link>
+                      </Button>
+                    </div>
+                  ) :
+                    groupedTimelines.map((group) => (
+                      <div key={group.title} className="space-y-4">
+                        {group.title && (
+                          <h3 className="text-lg font-medium text-foreground">{group.title}</h3>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {group.timelines.map((timeline) => {
+                            const color = getEventTypeColor(timeline.type);
+                            return (
+                              <Card
+                                key={timeline.id}
+                                className="group bg-white dark:bg-slate-800 border shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+                              >
+                                <CardContent className="p-4">
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex gap-3 flex-1">
+                                      {timeline.date && (
+                                        <div className="bg-gray-100 dark:bg-slate-700 rounded-md p-2 flex flex-col items-center justify-center min-w-[50px]">
+                                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                                            {format(parseISO(timeline.date), 'MMM')}
+                                          </span>
+                                          <span className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                                            {format(parseISO(timeline.date), 'd')}
+                                          </span>
+                                        </div>
+                                      )}
+                                      <div className="flex-1">
+                                        <Link href={`/timeline/${timeline.id}`}>
+                                          <h3 className="font-medium text-foreground hover:text-purple-600 dark:hover:text-purple-400 transition-colors line-clamp-2">
+                                            {timeline.title}
+                                          </h3>
+                                        </Link>
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                          {timeline.type && (
+                                            <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${color}`}>
+                                              {timeline.type}
+                                            </span>
+                                          )}
+                                          {timeline.location && (
+                                            <span className="inline-flex items-center rounded-full bg-gray-100 dark:bg-slate-700 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+                                              {timeline.location}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-2">
+                                          Last modified: {formatUpdatedAt(timeline.last_modified)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100">
+                                            <span className="sr-only">Open menu</span>
+                                            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4">
+                                              <path d="M3.625 7.5C3.625 8.12132 3.12132 8.625 2.5 8.625C1.87868 8.625 1.375 8.12132 1.375 7.5C1.375 6.87868 1.87868 6.375 2.5 6.375C3.12132 6.375 3.625 6.87868 3.625 7.5ZM8.625 7.5C8.625 8.12132 8.12132 8.625 7.5 8.625C6.87868 8.625 6.375 8.12132 6.375 7.5C6.375 6.87868 6.87868 6.375 7.5 6.375C8.12132 6.375 8.625 6.87868 8.625 7.5ZM13.625 7.5C13.625 8.12132 13.1213 8.625 12.5 8.625C11.8787 8.625 11.375 8.12132 11.375 7.5C11.375 6.87868 11.8787 6.375 12.5 6.375C13.1213 6.375 13.625 6.87868 13.625 7.5Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
+                                            </svg>
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem asChild>
+                                            <Link href={`/timeline/${timeline.id}`}>
+                                              <Edit2 className="mr-2 h-4 w-4" />
+                                              Edit
+                                            </Link>
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleDuplicateTimeline(timeline.id)}>
+                                            <Copy className="mr-2 h-4 w-4" />
+                                            Duplicate
+                                          </DropdownMenuItem>
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                                                <span className="text-destructive">Delete</span>
+                                              </DropdownMenuItem>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  This will permanently delete the timeline "{timeline.title}". This action cannot be undone.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => handleDeleteTimeline(timeline.id)}
+                                                  className="bg-red-600 hover:bg-red-700 text-white"
+                                                >
+                                                  Delete
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <Card className="bg-white dark:bg-slate-800 border shadow-sm overflow-hidden">
+                  <CardContent className="p-6">
+                    <CalendarView timelines={filteredTimelines} />
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+} 

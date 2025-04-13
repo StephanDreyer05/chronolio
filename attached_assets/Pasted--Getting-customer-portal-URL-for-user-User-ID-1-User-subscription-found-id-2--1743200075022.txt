@@ -1,0 +1,267 @@
+🔍 Getting customer portal URL for user...
+👤 User ID: 1
+📋 User subscription found: {
+  "id": 2,
+  "userId": 1,
+  "lemonSqueezyCustomerId": "5397238",
+  "lemonSqueezySubscriptionId": "1082188",
+  "planId": 1,
+  "variantId": 1,
+  "status": "on_trial",
+  "currentPeriodStart": "2025-04-04T13:06:17.000Z",
+  "currentPeriodEnd": "2025-04-11T13:06:17.000Z",
+  "trialEndsAt": "2025-04-11T13:06:17.000Z",
+  "cancelAtPeriodEnd": false,
+  "createdAt": "2025-03-28T13:06:52.620Z",
+  "updatedAt": "2025-03-28T13:06:52.620Z",
+  "plan": {
+    "id": 1,
+    "name": "Premium Plan",
+    "description": "Full access to all features",
+    "lemonSqueezyProductId": "477780",
+    "isActive": true,
+    "features": [
+      "Unlimited timelines",
+      "Unlimited vendors",
+      "Export to PDF",
+      "Premium support"
+    ],
+    "createdAt": "2025-03-27T23:50:58.033Z",
+    "updatedAt": "2025-03-27T23:50:58.033Z"
+  },
+  "variant": {
+    "id": 1,
+    "planId": 1,
+    "name": "Monthly",
+    "lemonSqueezyVariantId": "740696",
+    "price": 2900,
+    "interval": "month",
+    "intervalCount": 1,
+    "isActive": true,
+    "createdAt": "2025-03-27T23:50:58.072Z",
+    "updatedAt": "2025-03-28T10:43:26.676Z"
+  }
+}
+🍋 Fetching subscription details from Lemon Squeezy for ID: 1082188
+🍋 Lemon Squeezy API Response: {
+  "statusCode": 200,
+  "data": {
+    "jsonapi": {
+      "version": "1.0"
+    },
+    "links": {
+      "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188"
+    },
+    "data": {
+      "type": "subscriptions",
+      "id": "1082188",
+      "attributes": {
+        "store_id": 165605,
+        "customer_id": 5397238,
+        "order_id": 5159531,
+        "order_item_id": 5099891,
+        "product_id": 477780,
+        "variant_id": 740696,
+        "product_name": "Premium Plan",
+        "variant_name": "Monthly",
+        "user_name": "Stephan",
+        "user_email": "stephanus.dreyer@gmail.com",
+        "status": "on_trial",
+        "status_formatted": "On Trial",
+        "card_brand": "visa",
+        "card_last_four": "4242",
+        "pause": null,
+        "cancelled": false,
+        "trial_ends_at": "2025-04-04T13:06:17.000000Z",
+        "billing_anchor": 4,
+        "first_subscription_item": {
+          "id": 1406392,
+          "subscription_id": 1082188,
+          "price_id": 1137505,
+          "quantity": 1,
+          "is_usage_based": false,
+          "created_at": "2025-03-28T13:06:23.000000Z",
+          "updated_at": "2025-03-28T13:06:23.000000Z"
+        },
+        "urls": {
+          "update_payment_method": "https://chronolio.lemonsqueezy.com/subscription/1082188/payment-details?expires=1743221463&signature=3701e2f10ce3c177e19a769ac66836085b328be1246d0f665a7ef0101c2fc3ce",
+          "customer_portal": "https://chronolio.lemonsqueezy.com/billing?expires=1743221463&test_mode=1&user=4629507&signature=0acccfe912b38aa3185bcfe7a1580cdf6cd20c5f533495c854cd3f66a4617c9b",
+          "customer_portal_update_subscription": "https://chronolio.lemonsqueezy.com/billing/1082188/update?expires=1743221463&user=4629507&signature=ed01bb211e744b33ad81a3b546af5d1fa736452b7d804536b06edeae0f129349"
+        },
+        "renews_at": "2025-04-04T13:06:17.000000Z",
+        "ends_at": null,
+        "created_at": "2025-03-28T13:06:19.000000Z",
+        "updated_at": "2025-03-28T13:06:23.000000Z",
+        "test_mode": true
+      },
+      "relationships": {
+        "store": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/store",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/store"
+          }
+        },
+        "customer": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/customer",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/customer"
+          }
+        },
+        "order": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/order",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/order"
+          }
+        },
+        "order-item": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/order-item",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/order-item"
+          }
+        },
+        "product": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/product",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/product"
+          }
+        },
+        "variant": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/variant",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/variant"
+          }
+        },
+        "subscription-items": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/subscription-items",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/subscription-items"
+          }
+        },
+        "subscription-invoices": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/subscription-invoices",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/subscription-invoices"
+          }
+        }
+      },
+      "links": {
+        "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188"
+      }
+    }
+  },
+  "error": null
+}
+🔍 Full response structure: {
+  "statusCode": 200,
+  "data": {
+    "jsonapi": {
+      "version": "1.0"
+    },
+    "links": {
+      "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188"
+    },
+    "data": {
+      "type": "subscriptions",
+      "id": "1082188",
+      "attributes": {
+        "store_id": 165605,
+        "customer_id": 5397238,
+        "order_id": 5159531,
+        "order_item_id": 5099891,
+        "product_id": 477780,
+        "variant_id": 740696,
+        "product_name": "Premium Plan",
+        "variant_name": "Monthly",
+        "user_name": "Stephan",
+        "user_email": "stephanus.dreyer@gmail.com",
+        "status": "on_trial",
+        "status_formatted": "On Trial",
+        "card_brand": "visa",
+        "card_last_four": "4242",
+        "pause": null,
+        "cancelled": false,
+        "trial_ends_at": "2025-04-04T13:06:17.000000Z",
+        "billing_anchor": 4,
+        "first_subscription_item": {
+          "id": 1406392,
+          "subscription_id": 1082188,
+          "price_id": 1137505,
+          "quantity": 1,
+          "is_usage_based": false,
+          "created_at": "2025-03-28T13:06:23.000000Z",
+          "updated_at": "2025-03-28T13:06:23.000000Z"
+        },
+        "urls": {
+          "update_payment_method": "https://chronolio.lemonsqueezy.com/subscription/1082188/payment-details?expires=1743221463&signature=3701e2f10ce3c177e19a769ac66836085b328be1246d0f665a7ef0101c2fc3ce",
+          "customer_portal": "https://chronolio.lemonsqueezy.com/billing?expires=1743221463&test_mode=1&user=4629507&signature=0acccfe912b38aa3185bcfe7a1580cdf6cd20c5f533495c854cd3f66a4617c9b",
+          "customer_portal_update_subscription": "https://chronolio.lemonsqueezy.com/billing/1082188/update?expires=1743221463&user=4629507&signature=ed01bb211e744b33ad81a3b546af5d1fa736452b7d804536b06edeae0f129349"
+        },
+        "renews_at": "2025-04-04T13:06:17.000000Z",
+        "ends_at": null,
+        "created_at": "2025-03-28T13:06:19.000000Z",
+        "updated_at": "2025-03-28T13:06:23.000000Z",
+        "test_mode": true
+      },
+      "relationships": {
+        "store": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/store",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/store"
+          }
+        },
+        "customer": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/customer",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/customer"
+          }
+        },
+        "order": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/order",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/order"
+          }
+        },
+        "order-item": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/order-item",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/order-item"
+          }
+        },
+        "product": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/product",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/product"
+          }
+        },
+        "variant": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/variant",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/variant"
+          }
+        },
+        "subscription-items": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/subscription-items",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/subscription-items"
+          }
+        },
+        "subscription-invoices": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/subscription-invoices",
+            "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188/relationships/subscription-invoices"
+          }
+        }
+      },
+      "links": {
+        "self": "https://api.lemonsqueezy.com/v1/subscriptions/1082188"
+      }
+    }
+  },
+  "error": null
+}
+🔍 Response data keys: [ 'jsonapi', 'links', 'data' ]
+⚠️ Could not find portal URL in SDK response, may need to make a direct API call
+⚠️ Will look for customer_portal property in any of these objects:
+- responseData.urls: not found
+🔗 Customer portal URL found: null
+❌ Customer portal URL not found in any response structure

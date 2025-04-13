@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Rules to follow
+
+- Focus on solving the core issue in an efficient manner with as little as possible additional code
+- Don't fix or change things not related to the core issue we are solving
+- Keep fixes simple and don't try multiple fixes at the same time
+- Take one approach and follow through
+- Preferably, don't create and run scripts unnecessarily

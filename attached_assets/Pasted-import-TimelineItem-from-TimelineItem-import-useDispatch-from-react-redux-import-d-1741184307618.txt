@@ -1,0 +1,205 @@
+import { TimelineItem } from './TimelineItem';
+import { useDispatch } from 'react-redux';
+import { deleteItem } from '@/store/timelineSlice';
+import { Button } from '@/components/ui/button';
+import { PlusCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+
+interface TimelineViewProps {
+  items: Array<{
+    id: string;
+    startTime: string;
+    endTime: string;
+    duration: string;
+    title: string;
+    description: string;
+    location: string;
+    type: string;
+    category?: string;
+  }>;
+  categories: {
+    id: string;
+    name: string;
+    description?: string;
+    color?: string;
+  }[];
+  onUpdateItem: (id: string, updates: Partial<{
+    startTime: string;
+    endTime: string;
+    duration: string;
+    title: string;
+    description: string;
+    location: string;
+    type: string;
+    category?: string;
+  }>) => void;
+  onDeleteItem?: (id: string) => void;
+  onMoveItem: (dragIndex: number, hoverIndex: number) => void;
+  onAddItem: (category?: string, position?: number, prevItemIndex?: number) => void;  
+  onEditCategory?: (categoryId: string, updates: { name?: string; description?: string; color?: string }) => void;
+  onMoveCategory?: (dragIndex: number, hoverIndex: number) => void;
+  newItemId?: string | null;
+  bulkEditMode?: boolean;
+  selectedItems?: string[];
+  onSelectItem?: (id: string) => void;
+}
+
+export function TimelineView({ 
+  items, 
+  categories, 
+  onUpdateItem, 
+  onDeleteItem,
+  onMoveItem, 
+  onMoveCategory,
+  onAddItem, 
+  onEditCategory,
+  newItemId,
+  bulkEditMode = false,
+  selectedItems = [],
+  onSelectItem,
+  showCategories = true
+}: TimelineViewProps & { showCategories?: boolean }) {
+  const dispatch = useDispatch();
+  const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
+
+  const toggleCategory = (categoryId: string) => {
+    setCollapsedCategories(prev => 
+      prev.includes(categoryId) 
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
+  const renderTimelineItems = (itemsToRender: typeof items, categoryName?: string) => {
+    const relevantItems = showCategories && categoryName 
+      ? itemsToRender.filter(item => item.category === categoryName)
+      : itemsToRender;
+
+    if (relevantItems.length === 0) {
+      return (
+        <div className="text-center">
+          <Button
+            variant="ghost"
+            onClick={() => onAddItem(showCategories ? categoryName : undefined, 0)}
+            className="rounded-full w-8 h-8 p-0 hover:bg-primary/10"
+          >
+            <PlusCircle className="w-5 h-5 text-foreground" />
+          </Button>
+        </div>
+      );
+    }
+
+    const sortedItems = [...relevantItems].sort((a, b) => 
+      a.startTime.localeCompare(b.startTime)
+    );
+
+    return (
+      <div className={`space-y-2 transition-all duration-200 ease-in-out`}>
+        {sortedItems.map((item, index) => (
+          <div key={item.id}>
+            {index > 0 && (
+              <div className="flex justify-center my-2 opacity-20 hover:opacity-100 group-hover:opacity-100 transition-opacity duration-200">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full w-8 h-8 p-0 hover:bg-primary/10"
+                  onClick={() => onAddItem(showCategories ? categoryName : undefined, index, index - 1)}
+                >
+                  <PlusCircle className="w-5 h-5 text-foreground" />
+                </Button>
+              </div>
+            )}
+            <TimelineItem
+              {...item}
+              index={index}
+              allEvents={sortedItems}
+              onMove={onMoveItem}
+              onUpdate={onUpdateItem}
+              onDelete={onDeleteItem || (() => {})}
+              initialEditMode={item.id === newItemId}
+              newItemId={newItemId}
+              categories={categories.map(c => c.name)}
+              color={showCategories && categoryName ? categories.find(c => c.name === categoryName)?.color || '#000000' : '#000000'}
+              bulkEditMode={bulkEditMode}
+              isSelected={selectedItems.includes(item.id)}
+              onSelect={onSelectItem}
+            />
+          </div>
+        ))}
+        <div className="flex justify-center mt-2 opacity-20 group-hover:opacity-100 transition-opacity duration-200">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-full w-8 h-8 p-0 hover:bg-primary/10"
+            onClick={() => onAddItem(showCategories ? categoryName : undefined, sortedItems.length, sortedItems.length - 1)}
+          >
+            <PlusCircle className="w-5 h-5 text-foreground" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-8 bg-[rgb(246,248,250)] dark:bg-slate-900 p-6 rounded-lg">
+      {showCategories && categories.length > 0 ? (
+        <div className="space-y-8">
+          {categories.map(({ id, name, description }) => {
+            const isCollapsed = collapsedCategories.includes(id);
+            return (
+              <div 
+                key={id} 
+                className="group rounded-xl border border-border p-6 bg-white dark:bg-slate-800 hover:shadow-md transition-all duration-200"
+              >
+                <div 
+                  className="flex items-start gap-4 cursor-pointer"
+                  onClick={() => toggleCategory(id)}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      {isCollapsed ? (
+                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                      )}
+                      <h3 className="text-xl font-serif font-medium text-foreground">
+                        {name}
+                      </h3>
+                    </div>
+                    {description && !isCollapsed && (
+                      <div className="text-sm text-muted-foreground whitespace-pre-wrap ml-7">
+                        {description}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {!isCollapsed && (
+                  <div className="mt-4 ml-7">
+                    {renderTimelineItems(items, name)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div>
+          {items.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8 font-serif">
+              <Button
+                variant="ghost"
+                onClick={() => onAddItem()}
+                className="rounded-full w-8 h-8 p-0 hover:bg-primary/10 bg-white dark:bg-slate-800"
+              >
+                <PlusCircle className="w-5 h-5 text-foreground" />
+              </Button>
+              <p className="mt-2">Add your first timeline event to get started</p>
+            </div>
+          ) : (
+            renderTimelineItems(items)
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

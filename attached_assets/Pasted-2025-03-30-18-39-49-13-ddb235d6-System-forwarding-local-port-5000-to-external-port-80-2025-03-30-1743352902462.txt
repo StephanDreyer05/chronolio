@@ -1,0 +1,104 @@
+2025-03-30 18:39:49.13
+ddb235d6
+System
+forwarding local port 5000 to external port 80
+2025-03-30 18:39:51.14
+ddb235d6
+User
+Email configuration: { host: 'mail.chronolio.com', port: 465, secure: true, user: 'adm...' }
+2025-03-30 18:39:51.14
+ddb235d6
+User
+Email service initialized successfully
+2025-03-30 18:39:51.27
+ddb235d6
+User
+4:39:51 PM [express] Beginning server initialization...
+2025-03-30 18:39:51.27
+ddb235d6
+User
+4:39:51 PM [express] Step 1/7: Checking database connection...
+2025-03-30 18:39:51.93
+ddb235d6
+User
+4:39:51 PM [express] Database connection verified successfully
+2025-03-30 18:39:51.93
+ddb235d6
+User
+4:39:51 PM [express] Step 2/7: Setting up authentication...
+2025-03-30 18:39:51.93
+ddb235d6
+User
+4:39:51 PM [express] Authentication setup completed
+2025-03-30 18:39:51.93
+ddb235d6
+User
+4:39:51 PM [express] Step 3/7: Setting up AI router...
+2025-03-30 18:39:51.93
+ddb235d6
+User
+4:39:51 PM [express] AI router setup completed
+2025-03-30 18:39:51.93
+ddb235d6
+User
+4:39:51 PM [express] Step 4/7: Setting up payment service...
+2025-03-30 18:39:52.28
+ddb235d6
+User
+Lemon Squeezy API connected successfully
+2025-03-30 18:39:52.36
+ddb235d6
+User
+Using existing subscription plans
+2025-03-30 18:39:52.58
+ddb235d6
+User
+Webhook already registered for https://chronolio.replit.app/webhooks
+2025-03-30 18:39:52.58
+ddb235d6
+User
+4:39:52 PM [express] Payment service initialized successfully
+2025-03-30 18:39:52.58
+ddb235d6
+User
+4:39:52 PM [express] Step 5/7: Setting up subscription router...
+2025-03-30 18:39:52.58
+ddb235d6
+User
+4:39:52 PM [express] Subscription router setup completed
+2025-03-30 18:39:52.58
+ddb235d6
+User
+4:39:52 PM [express] Step 6/7: Registering application routes...
+2025-03-30 18:39:52.58
+ddb235d6
+User
+4:39:52 PM [express] Route registration completed
+2025-03-30 18:39:52.58
+ddb235d6
+User
+4:39:52 PM [express] Step 7/7: Setting up frontend serving...
+2025-03-30 18:39:52.58
+ddb235d6
+User
+4:39:52 PM [express] Using Vite for development
+2025-03-30 18:39:52.65
+ddb235d6
+User
+Re-optimizing dependencies because lockfile has changed
+2025-03-30 18:39:54.15
+ddb235d6
+User
+4:39:54 PM [express] Vite setup completed
+2025-03-30 18:39:54.16
+ddb235d6
+User
+4:39:54 PM [express] ✨ Server successfully started and listening on port 5000
+2025-03-30 18:39:54.65
+ddb235d6
+User
+4:39:54 PM [vite] Pre-transform error: Failed to load url /src/main.tsx (resolved id: /src/main.tsx). Does the file exist?
+2025-03-30 18:39:54.68
+ddb235d6
+System
+command finished with error [sh -c node dist/index.js]: exit status 1

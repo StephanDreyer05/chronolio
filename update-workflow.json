@@ -1,0 +1,16 @@
+{
+  "workflows": {
+    "Start application": {
+      "tasks": [
+        {
+          "task": "packager.installForAll"
+        },
+        {
+          "task": "shell.exec",
+          "args": "bash ./replit-combined-fix.sh",
+          "waitForPort": 5000
+        }
+      ]
+    }
+  }
+}

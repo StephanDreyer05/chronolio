@@ -1,0 +1,19 @@
+server/routes.ts(2056,10): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(value: { timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }): PgInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, and 'last_modified' does not exist in type '{ timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }'.
+  Overload 2 of 2, '(values: { timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }[]): PgInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, and 'timelineId' does not exist in type '{ timelineId: number | SQL<unknown> | Placeholder<string, any>; vendorId: number | SQL<unknown> | Placeholder<string, any>; id?: number | SQL<unknown> | Placeholder<...> | undefined; createdAt?: Date | ... 2 more ... | undefined; updatedAt?: Date | ... 2 more ... | undefined; }[]'.
+server/routes.ts(2139,29): error TS7006: Parameter 'vendorId' implicitly has an 'any' type.
+server/routes.ts(2151,65): error TS7006: Parameter 'id' implicitly has an 'any' type.
+server/routes.ts(2228,13): error TS7022: 'timelineVendors' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+server/routes.ts(2233,15): error TS2448: Block-scoped variable 'timelineVendors' used before its declaration.
+server/routes.ts(2234,31): error TS2448: Block-scoped variable 'timelineVendors' used before its declaration.
+server/routes.ts(2236,19): error TS2448: Block-scoped variable 'timelineVendors' used before its declaration.
+server/routes.ts(2238,55): error TS7031: Binding element 'vendor' implicitly has an 'any' type.
+server/routes.ts(2238,63): error TS7031: Binding element 'vendorType' implicitly has an 'any' type.
+server/auth.ts(5,23): error TS7016: Could not find a declaration file for module 'connect-pg-simple'. '/vercel/path0/node_modules/connect-pg-simple/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/connect-pg-simple` if it exists or add a new declaration (.d.ts) file containing `declare module 'connect-pg-simple';`
+server/auth.ts(470,54): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+Build Completed in /vercel/output [1m]
+Deploying outputs...

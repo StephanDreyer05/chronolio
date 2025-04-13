@@ -1,0 +1,108 @@
+{/* View Options section with heading */}
+          <div className="mb-6 bg-white dark:bg-slate-800 rounded-lg border shadow-sm overflow-hidden">
+            <div 
+              className="p-4 flex items-center justify-between cursor-pointer bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 hover:from-purple-100 hover:to-indigo-100 dark:hover:from-purple-900/30 dark:hover:to-indigo-900/30 transition-colors"
+              onClick={() => setShowViewOptions(!showViewOptions)}
+            >
+              <div className="flex items-center">
+                <Eye className="h-5 w-5 mr-2 text-purple-600" />
+                <h3 className="text-lg font-medium">View Options</h3>
+              </div>
+              <ChevronDown
+                className={`h-5 w-5 text-purple-600 transition-transform ${
+                  showViewOptions ? "transform rotate-180" : ""
+                }`}
+              />
+            </div>
+            {showViewOptions && (
+              <div className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="show-descriptions"
+                      checked={showDescriptions}
+                      onCheckedChange={(checked) => setShowDescriptions(checked)}
+                      className="data-[state=checked]:bg-purple-600"
+                    />
+                    <Label htmlFor="show-descriptions" className="text-base font-medium">Descriptions</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="show-locations"
+                      checked={showLocations}
+                      onCheckedChange={(checked) => setShowLocations(checked)}
+                      className="data-[state=checked]:bg-purple-600"
+                    />
+                    <Label htmlFor="show-locations" className="text-base font-medium">Locations</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="show-end-times"
+                      checked={showEndTimes}
+                      onCheckedChange={(checked) => setShowEndTimes(checked)}
+                      className="data-[state=checked]:bg-purple-600"
+                    />
+                    <Label htmlFor="show-end-times" className="text-base font-medium">End Times</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="show-durations"
+                      checked={showDurations}
+                      onCheckedChange={(checked) => setShowDurations(checked)}
+                      className="data-[state=checked]:bg-purple-600"
+                    />
+                    <Label htmlFor="show-durations" className="text-base font-medium">Durations</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="show-icons"
+                      checked={showIcons}
+                      onCheckedChange={(checked) => setShowIcons(checked)}
+                      className="data-[state=checked]:bg-purple-600"
+                    />
+                    <Label htmlFor="show-icons" className="text-base font-medium">Icons</Label>
+                  </div>
+
+                  {showCategories && (
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="show-categories-on-items"
+                        checked={showCategoriesOnItems}
+                        onCheckedChange={(checked) => setShowCategoriesOnItems(checked)}
+                        className="data-[state=checked]:bg-purple-600"
+                      />
+                      <Label htmlFor="show-categories-on-items" className="text-base font-medium">Categories</Label>
+                    </div>
+                  )}
+
+                  {showVendors && (
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="show-vendors-on-items"
+                        checked={showVendorsOnItems}
+                        onCheckedChange={(checked) => setShowVendorsOnItems(checked)}
+                        className="data-[state=checked]:bg-purple-600"
+                      />
+                      <Label htmlFor="show-vendors-on-items" className="text-base font-medium">Participants</Label>
+                    </div>
+                  )}
+
+                  {showVendors && (
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="show-vendor-types"
+                        checked={showVendorTypes}
+                        onCheckedChange={(checked) => setShowVendorTypes(checked)}
+                        className="data-[state=checked]:bg-purple-600"
+                      />
+                      <Label htmlFor="show-vendor-types" className="text-base font-medium">Participant Types</Label>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>

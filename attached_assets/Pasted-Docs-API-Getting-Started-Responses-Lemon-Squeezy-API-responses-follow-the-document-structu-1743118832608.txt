@@ -1,0 +1,131 @@
+Docs
+→
+API
+→
+Getting Started
+Responses
+Lemon Squeezy API responses follow the document structure outlined in the JSON:API spec.
+
+JSON:API spec requires every response to contain a top-level data object/array which will contain one or many resource objects. Each resource object will contain the following properties:
+
+type - The type of the resource (e.g. products, orders, etc.)
+id - The id of the resource
+attributes - An object representing the resources data
+A resource object may also contain optional properties such as relationships, links and meta.
+
+Example
+Request
+
+curl "https://api.lemonsqueezy.com/v1/stores" \
+  -H 'Accept: application/vnd.api+json' \
+  -H 'Content-Type: application/vnd.api+json' \
+  -H 'Authorization: Bearer {api_key}'
+Response
+
+{
+  "meta": {
+    "page": {
+      "currentPage": 1,
+      "from": 1,
+      "lastPage": 1,
+      "perPage": 10,
+      "to": 10,
+      "total": 10
+    }
+  },
+  "jsonapi": {
+    "version": "1.0"
+  },
+  "links": {
+    "first": "https://api.lemonsqueezy.com/v1/stores?page%5Bnumber%5D=1&page%5Bsize%5D=10&sort=name",
+    "last": "https://api.lemonsqueezy.com/v1/stores?page%5Bnumber%5D=1&page%5Bsize%5D=10&sort=name"
+  },
+  "data": [
+    {
+      "type": "stores",
+      "id": "1",
+      "attributes": {
+        "name": "My Store",
+        "slug": "my-store",
+        "domain": "my-store.lemonsqueezy.com",
+        "url": "https://my-store.lemonsqueezy.com",
+        "avatar_url": "https://app.lemonsqueezy.com/storage/avatars/stores/1/czTkMkDm4Vfb8PZehb5c29XFCm9JZyJx0AjEZP7s.png",
+        "plan": "fresh",
+        "country": "US",
+        "country_nicename": "United States",
+        "currency": "USD",
+        "total_sales": 1,
+        "total_revenue": 999,
+        "thirty_day_sales": 0,
+        "thirty_day_revenue": 0,
+        "created_at": "2024-05-24T14:15:06.000000Z",
+        "updated_at": "2024-06-15T10:03:14.000000Z"
+      },
+      "relationships": {
+        "products": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/stores/1/products",
+            "self": "https://api.lemonsqueezy.com/v1/stores/1/relationships/products"
+          }
+        },
+        "orders": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/stores/1/orders",
+            "self": "https://api.lemonsqueezy.com/v1/stores/1/relationships/orders"
+          }
+        },
+        "subscriptions": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/stores/1/subscriptions",
+            "self": "https://api.lemonsqueezy.com/v1/stores/1/relationships/subscriptions"
+          }
+        },
+        "discounts": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/stores/1/discounts",
+            "self": "https://api.lemonsqueezy.com/v1/stores/1/relationships/discounts"
+          }
+        },
+        "license-keys": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/stores/1/license-keys",
+            "self": "https://api.lemonsqueezy.com/v1/stores/1/relationships/license-keys"
+          }
+        },
+        "webhooks": {
+          "links": {
+            "related": "https://api.lemonsqueezy.com/v1/stores/1/webhooks",
+            "self": "https://api.lemonsqueezy.com/v1/stores/1/relationships/webhooks"
+          }
+        }
+      },
+      "links": {
+        "self": "https://api.lemonsqueezy.com/v1/stores/1"
+      }
+    },
+    {...}
+    {...}
+  ]
+}
+Errors
+The Lemon Squeezy API uses conventional HTTP response codes to indicate the success or failure of an API request. In general, codes in the 2xx range indicate success. Codes in the 4xx range indicate an error that failed given the information provided (e.g., a required parameter was omitted, an action failed, etc). Codes in the 5xx range indicate an error with our servers (these are rare).
+
+A 4xx error will always contain valid JSON:API errors array in the response. Each error object will usually contain several fields that explain the error, including detail, status, title etc. For example:
+
+{
+  "jsonapi": {
+    "version": "1.0"
+  },
+  "errors": [
+    {
+      "detail": "Unauthenticated.",
+      "status": "401",
+      "title": "Unauthorized"
+    }
+  ]
+}
+Previous
+
+← Requests
+Next
+

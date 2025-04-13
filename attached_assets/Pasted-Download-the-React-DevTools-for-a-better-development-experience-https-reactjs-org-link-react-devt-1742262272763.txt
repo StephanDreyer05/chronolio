@@ -1,0 +1,59 @@
+Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+react-dom.development.js:86  Warning: Connect(Droppable): Support for defaultProps will be removed from memo components in a future major release. Use JavaScript default parameters instead.
+    at Provider (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/react-beautiful-dnd.js?v=da184de6:1682:20)
+    at App (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/react-beautiful-dnd.js?v=da184de6:8225:25)
+    at ErrorBoundary2 (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/react-beautiful-dnd.js?v=da184de6:2722:35)
+    at DragDropContext (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/react-beautiful-dnd.js?v=da184de6:8345:19)
+    at div
+    at div
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-CPFL7ZFD.js?v=da184de6:41:13
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-HWZA7GE5.js?v=da184de6:47:7
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-DKHUMOWT.js?v=da184de6:52:11
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-DKHUMOWT.js?v=da184de6:33:11
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-CPFL7ZFD.js?v=da184de6:41:13
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-TOCBAF5K.js?v=da184de6:41:5
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-BICQI6D6.js?v=da184de6:236:13
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-BICQI6D6.js?v=da184de6:159:58
+    at Presence (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-S7EWQZ7Q.js?v=da184de6:24:11)
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-BICQI6D6.js?v=da184de6:150:64
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-DKHUMOWT.js?v=da184de6:52:11
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-DKHUMOWT.js?v=da184de6:33:11
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-CPFL7ZFD.js?v=da184de6:41:13
+    at https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-HWZA7GE5.js?v=da184de6:246:22
+    at Presence (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-S7EWQZ7Q.js?v=da184de6:24:11)
+    at Provider (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-JJS7DLG7.js?v=da184de6:38:15)
+    at DialogPortal (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-BICQI6D6.js?v=da184de6:113:11)
+    at _c3 (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/src/components/ui/dialog.tsx:49:12)
+    at Provider (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-JJS7DLG7.js?v=da184de6:38:15)
+    at Dialog (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-BICQI6D6.js?v=da184de6:54:5)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at div
+    at _c9 (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/src/components/ui/card.tsx:106:12)
+    at div
+    at _c (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/src/components/ui/card.tsx:20:11)
+    at div
+    at div
+    at main
+    at div
+    at div
+    at SettingsPage (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/src/pages/SettingsPage.tsx:311:20)
+    at Route (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=da184de6:191:16)
+    at ProtectedRoute (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/src/lib/protected-route.tsx:22:3)
+    at Switch (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=da184de6:247:17)
+    at TimelineNavigationProvider (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/src/hooks/use-timeline-navigation.tsx:21:46)
+    at AppContent (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/src/App.tsx?t=1742261956717:41:3)
+    at ThemeProvider (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/src/components/ThemeProvider.tsx:27:3)
+    at AuthProvider (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/src/hooks/use-auth.tsx:50:32)
+    at Provider (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/react-redux.js?v=da184de6:923:11)
+    at DndProvider2 (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/react-dnd.js?v=da184de6:1508:9)
+    at App
+    at QueryClientProvider (https://46bfefbe-87e0-47ab-a4cd-257bbfc52f52-00-lgtzqxecujzm.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=da184de6:2805:3)
+printWarning @ react-dom.development.js:86
+[NEW] Explain Console errors by using Copilot in Edge: click
+         
+         to explain an error. 
+        Learn more

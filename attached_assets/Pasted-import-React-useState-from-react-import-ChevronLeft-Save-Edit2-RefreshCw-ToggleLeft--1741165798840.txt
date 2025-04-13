@@ -1,0 +1,201 @@
+import React, { useState } from 'react';
+import { ChevronLeft, Save, Edit2, RefreshCw, ToggleLeft, ToggleRight, FileDown, CornerDownRight } from 'lucide-react';
+
+const TimelineGenerator = () => {
+  const [eventName, setEventName] = useState('Nicole & Stephan\'s Wedding123');
+  const [eventDate, setEventDate] = useState('2025-04-22');
+  const [eventType, setEventType] = useState('Wedding');
+  const [venue, setVenue] = useState('Belair Pavilion');
+  const [guestCount, setGuestCount] = useState('');
+  const [rehearsalDate, setRehearsalDate] = useState('');
+  const [livingIn, setLivingIn] = useState('');
+  
+  const [showCategories, setShowCategories] = useState(false);
+  const [showLocations, setShowLocations] = useState(false);
+  const [showDescriptions, setShowDescriptions] = useState(false);
+
+  return (
+    <div className="bg-white min-h-screen p-6 max-w-4xl mx-auto">
+      {/* Top Navigation */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center space-x-4">
+          <button className="text-gray-600 hover:bg-gray-100 p-2 rounded-md">
+            <ChevronLeft size={24} />
+          </button>
+          <span className="text-gray-600">Back to Timelines</span>
+        </div>
+        <div className="flex space-x-2">
+          <button className="text-gray-700 border rounded-md px-3 py-1 hover:bg-gray-100">
+            Save as Template
+          </button>
+          <button className="text-gray-700 border rounded-md px-3 py-1 hover:bg-gray-100">
+            Edit with AI
+          </button>
+        </div>
+      </div>
+
+      {/* Action Bar */}
+      <div className="flex justify-between items-center mb-6 border-b pb-4">
+        <div className="flex space-x-2">
+          <button className="text-gray-600 hover:bg-gray-100 p-2 rounded-md" title="Undo">
+            <RefreshCw size={20} />
+          </button>
+          <button className="text-gray-600 hover:bg-gray-100 p-2 rounded-md" title="Redo">
+            <CornerDownRight size={20} />
+          </button>
+          <button className="text-gray-600 hover:bg-gray-100 p-2 rounded-md" title="Sort by Time">
+            <Edit2 size={20} />
+          </button>
+        </div>
+        <div className="flex space-x-2">
+          <button className="text-gray-700 border rounded-md px-3 py-1 hover:bg-gray-100">
+            Save as Template
+          </button>
+          <button className="text-gray-700 border rounded-md px-3 py-1 hover:bg-gray-100">
+            Templates
+          </button>
+          <button className="text-gray-700 border rounded-md px-3 py-1 hover:bg-gray-100">
+            Export
+          </button>
+        </div>
+      </div>
+
+      {/* Event Details */}
+      <div className="space-y-4 mb-6">
+        <input 
+          type="text"
+          value={eventName}
+          onChange={(e) => setEventName(e.target.value)}
+          className="w-full text-2xl font-bold text-center border-b pb-2 focus:outline-none"
+        />
+        <div className="flex justify-center space-x-4">
+          <input 
+            type="date"
+            value={eventDate}
+            onChange={(e) => setEventDate(e.target.value)}
+            className="text-center text-gray-600 border rounded-md px-3 py-1"
+          />
+          <select 
+            value={eventType}
+            onChange={(e) => setEventType(e.target.value)}
+            className="text-center text-gray-600 border rounded-md px-3 py-1"
+          >
+            <option>Wedding</option>
+            <option>Birthday</option>
+            <option>Anniversary</option>
+          </select>
+        </div>
+        <input 
+          type="text"
+          value={venue}
+          onChange={(e) => setVenue(e.target.value)}
+          className="w-full text-center text-gray-600 border-b pb-2 focus:outline-none"
+        />
+      </div>
+
+      {/* Toggle Options */}
+      <div className="flex justify-between items-center mb-6 border-b pb-4">
+        <div className="flex space-x-4">
+          <div className="flex items-center space-x-2">
+            <span>Show categories</span>
+            {showCategories 
+              ? <ToggleRight 
+                  size={32} 
+                  className="text-blue-500 cursor-pointer" 
+                  onClick={() => setShowCategories(false)}
+                />
+              : <ToggleLeft 
+                  size={32} 
+                  className="text-gray-300 cursor-pointer" 
+                  onClick={() => setShowCategories(true)}
+                />
+            }
+          </div>
+          <div className="flex items-center space-x-2">
+            <span>Show locations</span>
+            {showLocations 
+              ? <ToggleRight 
+                  size={32} 
+                  className="text-blue-500 cursor-pointer" 
+                  onClick={() => setShowLocations(false)}
+                />
+              : <ToggleLeft 
+                  size={32} 
+                  className="text-gray-300 cursor-pointer" 
+                  onClick={() => setShowLocations(true)}
+                />
+            }
+          </div>
+          <div className="flex items-center space-x-2">
+            <span>Show descriptions</span>
+            {showDescriptions 
+              ? <ToggleRight 
+                  size={32} 
+                  className="text-blue-500 cursor-pointer" 
+                  onClick={() => setShowDescriptions(false)}
+                />
+              : <ToggleLeft 
+                  size={32} 
+                  className="text-gray-300 cursor-pointer" 
+                  onClick={() => setShowDescriptions(true)}
+                />
+            }
+          </div>
+        </div>
+        <button className="flex items-center space-x-2 text-gray-700 border rounded-md px-3 py-1 hover:bg-gray-100">
+          <Save size={20} />
+          <span>Save Details</span>
+        </button>
+      </div>
+
+      {/* Timeline Details */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-gray-700 mb-2">Guest Count</label>
+          <input 
+            type="number"
+            value={guestCount}
+            onChange={(e) => setGuestCount(e.target.value)}
+            placeholder="Enter guest count"
+            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+        <div>
+          <label className="block text-gray-700 mb-2">Rehearsal Date</label>
+          <input 
+            type="date"
+            value={rehearsalDate}
+            onChange={(e) => setRehearsalDate(e.target.value)}
+            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+        <div className="col-span-2">
+          <label className="block text-gray-700 mb-2">Living in</label>
+          <input 
+            type="text"
+            value={livingIn}
+            onChange={(e) => setLivingIn(e.target.value)}
+            placeholder="Enter living location"
+            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+      </div>
+
+      {/* Bottom Actions */}
+      <div className="flex justify-between mt-6 pt-4 border-t">
+        <button className="flex items-center space-x-2 text-gray-700 border rounded-md px-3 py-2 hover:bg-gray-100">
+          <RefreshCw size={20} />
+          <span>Reset</span>
+        </button>
+        <div className="flex space-x-2">
+          <button className="text-gray-700 border rounded-md px-3 py-2 hover:bg-gray-100">
+            Bulk Edit
+          </button>
+          <button className="bg-blue-600 text-white rounded-md px-4 py-2 hover:bg-blue-700">
+            Export
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

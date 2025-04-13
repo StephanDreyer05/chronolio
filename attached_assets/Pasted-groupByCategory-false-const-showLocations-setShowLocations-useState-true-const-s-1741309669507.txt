@@ -1,0 +1,1504 @@
+groupByCategory: false,
+  });
+  const [showLocations, setShowLocations] = useState(true);
+  const [showDescriptions, setShowDescriptions] = useState(true);
+  // Add preview state
+  const [previewContent, setPreviewContent] = useState('');
+
+  const { data: timelineImages, isLoading: isTimelineImagesLoading, error: timelineImagesError } = useQuery<TimelineImage[]>({
+    queryKey: ['/api/timelines', timelineId, 'images'],
+    queryFn: async () => {
+      const response = await fetch(`/api/timelines/${timelineId}/images`);
+      if (!response.ok) throw new Error('Failed to fetch timeline images');
+      return response.json();
+    },
+    enabled: !isTemplate && !!timelineId,
+  });
+
+  useEffect(() => {
+    if (templateToApply !== null) {
+      setShowTemplateConfirmDialog(true);
+    }
+  }, [templateToApply]);
+
+  useEffect(() => {
+    console.log("Categories state changed:", showCategories);
+    setLocalShowCategories(showCategories);
+  }, [showCategories]);
+
+  // Update preview when dialog opens or options change
+  useEffect(() => {
+    if (showExportDialog) {
+      generatePreview().then(preview => setPreviewContent(preview));
+    }
+  }, [showExportDialog, exportOptions]);
+
+  const handleAddItem = (category?: string, position?: number, prevItemIndex?: number) => {
+    let startTime = '12:00';
+    let location = '';
+
+    const items = isTemplate && propItems ? propItems : timelineItems;
+
+    const relevantItems = localShowCategories && category
+      ? items.filter(item => item.category === category)
+      : items;
+
+    const sortedItems = [...relevantItems].sort((a, b) =>
+      a.startTime.localeCompare(b.startTime)
+    );
+
+    if (typeof position === 'number' && position > 0) {
+      if (prevItemIndex !== undefined && prevItemIndex >= 0 && prevItemIndex < sortedItems.length) {
+        const previousItem = sortedItems[prevItemIndex];
+        const startDate = parse(previousItem.startTime, 'HH:mm', new Date());
+        const endDate = addMinutes(startDate, parseInt(previousItem.duration));
+        startTime = format(endDate, 'HH:mm');
+        location = previousItem.location || '';
+      }
+    } else if (items.length > 0) {
+      location = items[0].location || '';
+    }
+
+    const newItemId = Date.now().toString();
+    const newItem: TimelineItem = {
+      id: newItemId,
+      startTime,
+      endTime: startTime,
+      duration: defaultEventDuration?.toString() || "60",
+      title: 'New Event',
+      description: '',
+      location,
+      type: 'event',
+      category
+    };
+
+    if (isTemplate && setTemplateItems && propItems) {
+      const newItems = [...propItems];
+      if (typeof position === 'number') {
+        let insertPosition = position;
+        if (localShowCategories && category) {
+          const categoryItemsBeforePosition = propItems.filter(item =>
+            item.category === category &&
+            item.startTime <= sortedItems[prevItemIndex || 0]?.startTime
+          ).length;
+          insertPosition = categoryItemsBeforePosition + 1;
+        }
+        newItems.splice(insertPosition, 0, newItem);
+      } else {
+        newItems.push(newItem);
+      }
+      setTemplateItems(newItems);
+    } else {
+      if (typeof position === 'number') {
+        const updatedItems = [...timelineItems];
+        let insertPosition = position;
+        if (localShowCategories && category) {
+          const categoryItemsBeforePosition = timelineItems.filter(item =>
+            item.category === category &&
+            item.startTime <= sortedItems[prevItemIndex || 0]?.startTime
+          ).length;
+          insertPosition = categoryItemsBeforePosition + 1;
+        }
+        updatedItems.splice(insertPosition, 0, newItem);
+        dispatch(setItems(updatedItems));
+      } else {
+        dispatch(addItem(newItem));
+      }
+    }
+
+    setLocalNewItemId(newItemId);
+
+    setTimeout(() => {
+      setLocalNewItemId(null);
+    }, 100);
+  };
+
+  const handleAddCategory = () => {
+    if (newCategory && !categories.find(cat => cat.name === newCategory)) {
+      const newCat = {
+        id: Date.now().toString(),
+        name: newCategory,
+        description: '',
+        order: categories.length
+      };
+
+      if (categories.length === 0) {
+        if (isTemplate && setTemplateItems && propItems) {
+          setTemplateItems(propItems.map(item => ({ ...item, category: newCategory })));
+        } else {
+          dispatch(setItems(timelineItems.map(item => ({ ...item, category: newCategory }))));
+        }
+      }
+
+      setCategories([...categories, newCat]);
+      setNewCategory('');
+    }
+  };
+
+  const handleEditCategory = (categoryId: string, updates: { name: string; description: string }) => {
+
+    //const handleEditCategory = (categoryId: string, updates: { name: string; description: string }) => {
+    setCategories(categories.map(cat =>
+      cat.id === categoryId
+        ? { ...cat, ...updates }
+        : cat
+    ));
+
+    if (updates.name) {
+      const oldCategory = categories.find(cat => cat.id === categoryId);
+      if (oldCategory) {
+        if (isTemplate && setTemplateItems && propItems) {
+          setTemplateItems(propItems.map(item => {
+            if (item.category === oldCategory.name) {
+              return { ...item, category: updates.name };
+            }
+            return item;
+          }));
+        } else {
+          dispatch(setItems(timelineItems.map(item => {
+            if (item.category === oldCategory.name) {
+              return { ...item, category: updates.name };
+            }
+            return item;
+          })));
+        }
+      }
+    }
+    setEditingCategory(null);
+  };
+
+  const handleDeleteCategory = (categoryId: string) => {
+    const categoryToDelete = categories.find(cat => cat.id === categoryId);
+    if (categoryToDelete) {
+      const remainingCategories = categories.filter(cat => cat.id !== categoryId);
+      setCategories(remainingCategories);
+
+      if (isTemplate && setTemplateItems && propItems) {
+        setTemplateItems(propItems.map(item => {
+          if (item.category === categoryToDelete.name) {
+            return { ...item, category: undefined };
+          }
+          return item;
+        }));
+      } else {
+        dispatch(setItems(timelineItems.map(item => {
+          if (item.category === categoryToDelete.name) {
+            return { ...item, category: undefined };
+          }
+          return item;
+        })));
+      }
+    }
+  };
+
+  const moveCategory = (dragIndex: number, hoverIndex: number) => {
+    const newCategories = [...categories];
+    const [removed] = newCategories.splice(dragIndex, 1);
+    newCategories.splice(hoverIndex, 0, removed);
+    setCategories(newCategories);
+  };
+
+  const handleReset = () => {
+    setShowResetDialog(true);
+  };
+
+  const handleResetConfirm = () => {
+    dispatch(resetTimeline());
+    setCategories([]);
+    setLocalShowCategories(false);
+    setShowCategories(false);
+    setShowResetDialog(false);
+  };
+
+  const applyTemplate = async (templateId: number) => {
+    try {
+      const response = await fetch(`/api/templates/${templateId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch template');
+      }
+
+      const template = await response.json();
+
+      setTemplateToApply(templateId);
+    } catch (error) {
+      console.error('Template fetch error:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to fetch template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleTemplateConfirm = async () => {
+    if (!templateToApply) return;
+
+    try {
+      const response = await fetch(`/api/templates/${templateToApply}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch template');
+      }
+
+      const template = await response.json();
+
+      const newCategories = template.categories.map((cat: any, index: number) => ({
+        id: Date.now().toString() + index,
+        name: cat.name,
+        description: cat.description || '',
+        order: cat.order
+      }));
+
+      setCategories(newCategories);
+      setLocalShowCategories(true);
+      setShowCategories(true);
+
+      const templateEvents = template.events.map((event: any) => ({
+        id: Date.now().toString() + Math.random(),
+        startTime: event.startTime,
+        endTime: event.startTime,
+        duration: event.duration,
+        title: event.title,
+        description: event.description || '',
+        location: event.location || '',
+        type: event.type || 'event',
+        category: event.category
+      }));
+
+      if (isTemplate && setTemplateItems && propItems) {
+        setTemplateItems(templateEvents);
+      } else {
+        dispatch(setItems(templateEvents));
+      }
+
+      toast({
+        title: "Success",
+        description: "Template applied successfully",
+      });
+    } catch (error) {
+      console.error('Template application error:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to apply template",
+        variant: "destructive",
+      });
+    } finally {
+      setTemplateToApply(null);
+    }
+  };
+
+  const exportToCSV = () => {
+    const items = isTemplate && propItems ? propItems : timelineItems;
+    const sortedItems = [...items].sort((a, b) =>
+      a.startTime.localeCompare(b.startTime)
+    );
+
+    const csvRows = [
+      ['Category', 'Start Time', 'End Time', 'Duration (min)', 'Title', 'Description', 'Location', 'Type'].join(','),
+      ...sortedItems.map(item => [
+        item.category || '',
+        item.startTime,
+        calculateEndTime(item.startTime, item.duration),
+        item.duration,
+        `"${item.title.replace(/"/g, '""')}"`,
+        `"${item.description.replace(/"/g, '""')}"`,
+        `"${item.location.replace(/"/g, '""')}"`,
+        item.type
+      ].join(','))
+    ];
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${getFormattedFilename()}.csv`;
+    link.click();
+  };
+
+  const calculateEndTime = (startTime: string, duration: string): string => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const durationMinutes = parseInt(duration);
+
+    const totalMinutes = hours * 60 + minutes + durationMinutes;
+    const endHours = Math.floor(totalMinutes / 60) % 24;
+    const endMinutes = totalMinutes % 60;
+
+    return `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+  };
+
+  const exportToPDF = async () => {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 20;
+    let yPosition = margin;
+    let pageNumber = 1;
+    const footerMargin = 20;
+    const footerHeight = 15;
+
+    // Function to add footer with page numbers
+    const addFooter = (currentPage: number) => {
+      const footerY = pageHeight - footerMargin;
+
+      // Add page numbers
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'italic');
+      pdf.setTextColor(128, 128, 128);
+      pdf.text(`Page ${currentPage}`, pdfWidth / 2, footerY, { align: 'center' });
+
+      // Add footer text below page numbers if it exists
+      if (settingsExportFooterText) {
+        pdf.setFontSize(8);
+        pdf.setTextColor(128, 128, 128);
+        pdf.text(settingsExportFooterText, pdfWidth / 2, footerY + 5, { align: 'center' });
+      }
+    };
+
+    // Pre-calculate total pages
+    const items = isTemplate && propItems ? propItems : timelineItems;
+    const sortedItems = [...items].sort((a, b) =>
+      a.startTime.localeCompare(b.startTime)
+    );
+
+    let totalPages = 1;
+    let tempY = yPosition;
+
+    // Title and basic info
+    tempY += 30; // Account for title section
+
+    // Calculate pages needed for items
+    sortedItems.forEach(item => {
+      const itemHeight = 7; // Basic height for time and title
+      const descriptionLines = item.description && exportOptions.showDescriptions
+        ? pdf.splitTextToSize(item.description, pdfWidth - (margin * 2) - 40).length
+        : 0;
+
+      tempY += itemHeight + (descriptionLines * 5) + (item.location ? 7 : 0) + 5;
+
+      if (tempY > pageHeight - (footerMargin + footerHeight)) {
+        totalPages++;
+        tempY = margin;
+      }
+    });
+
+    // Reset position for actual content
+    yPosition = margin;
+
+    const addNewPage = () => {
+      addFooter(pageNumber);
+      pdf.addPage();
+      pageNumber++;
+      yPosition = margin;
+    };
+
+    // Add title and info
+    pdf.setFontSize(24);
+    pdf.setTextColor(0, 0, 0);
+    const titleEventType = weddingInfo.type || 'Event';
+    const title = `${titleEventType} Timeline`;
+    pdf.text(title, pdfWidth / 2, yPosition, { align: 'center' });
+    yPosition += 10;
+
+    if (weddingInfo.names) {
+      pdf.setFontSize(20);
+      pdf.text(weddingInfo.names, pdfWidth / 2, yPosition, { align: 'center' });
+      yPosition += 10;
+    }
+
+    if (weddingInfo.date) {
+      pdf.setFontSize(14);
+      pdf.text(
+        format(new Date(weddingInfo.date), 'EEEE d MMMM yyyy'),
+        pdfWidth / 2,
+        yPosition,
+        { align: 'center' }
+      );
+      yPosition += 20;
+    }
+
+    const selectedEventType = reduxEventTypes.find(et => et.type === weddingInfo.type);
+    if (exportOptions.includeUserInfo && selectedEventType?.customFields) {
+      pdf.setFontSize(14);
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFont('helvetica', 'bold');
+      selectedEventType.customFields.forEach(field => {
+        const value = weddingInfo.customFieldValues?.[field.id];
+        if (value !== undefined && value !== null) {
+          let displayValue = value;
+          if (field.type === 'date') {
+            displayValue = format(new Date(value as string), 'PPP');
+          } else if (field.type === 'boolean') {
+            displayValue = value ? 'Yes' : 'No';
+          }
+          if (yPosition > pageHeight - margin * 2) {
+            addNewPage();
+          }
+          pdf.setFont('helvetica', 'bold');
+          const fieldText = `${field.name}:`;
+          pdf.text(fieldText, margin, yPosition);
+          // Get the actual width of the fieldText
+          const textWidth = pdf.getTextWidth(fieldText);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(` ${displayValue}`, margin + textWidth, yPosition);
+          yPosition += 8;
+        }
+      });
+      yPosition += 10;
+    }
+
+    // Now add all events
+    let currentCategory = '';
+
+    sortedItems.forEach((item, index) => {
+      // Check if we need a new page
+      if (yPosition > pageHeight - (footerMargin + footerHeight + 30)) {
+        addNewPage();
+      }
+
+      // Add category header if grouping by category
+      if (exportOptions.groupByCategory && categories.length > 0) {
+        if (item.category !== currentCategory) {
+          currentCategory = item.category || 'Uncategorized';
+
+          // Add some space before the category header (except for the first one)
+          if (index > 0) {
+            yPosition += 10;
+          }
+
+          // Draw a divider line
+          pdf.setDrawColor(100, 100, 100);
+          pdf.setLineWidth(0.5);
+          pdf.line(margin, yPosition, pdfWidth - margin, yPosition);
+          yPosition += 5;
+
+                    // Draw the category header
+          pdf.setFontSize(14);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(60, 60, 60);
+          pdf.text(currentCategory, margin, yPosition);
+          yPosition += 10;
+
+          // Check if we need a new page after adding the category header
+          if (yPosition > pageHeight - (footerMargin + footerHeight + 30)) {
+            addNewPage();
+          }
+        }
+      }
+
+      // Timeline line
+      pdf.setDrawColor(200, 200, 200);
+      pdf.setLineWidth(0.5);
+      pdf.line(margin, yPosition, margin, yPosition + 10);
+
+      // Time
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(item.startTime, margin + 15, yPosition + 5);
+
+      // Event title
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(item.title, margin + 40, yPosition + 5);
+      yPosition += 7;
+
+      // Description if available
+      if (item.description && exportOptions.showDescriptions) {
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        const descriptionLines = pdf.splitTextToSize(
+          item.description,
+          pdfWidth - (margin * 2) - 40
+        );
+        pdf.text(descriptionLines, margin + 40, yPosition);
+        yPosition += descriptionLines.length * 5;
+      }
+
+      // Location if available
+      if (item.location) {
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'italic');
+        pdf.text(`Location: ${item.location}`, margin + 40, yPosition);
+        yPosition += 7;
+      }
+
+      yPosition += 5; // Add a bit more space between events
+    });
+
+    const eventType = reduxEventTypes.find(et => et.type === weddingInfo.type);
+    if (exportOptions.includeUserInfo && eventType?.customFields) {
+      pdf.setFontSize(14);
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFont('helvetica', 'bold');
+      yPosition += 10;
+    }
+    console.log('Export conditions:', {
+      includeImages: exportOptions.includeImages,
+      hasTimelineImages: !!timelineImages,
+      timelineImagesLength: timelineImages?.length
+    });
+    if (exportOptions.includeImages && timelineImages && timelineImages.length > 0) {
+      console.log('Starting image export process');
+      try {
+        addNewPage();
+        pdf.setFontSize(18);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Timeline Images', pdfWidth /2, yPosition, { align: 'center' });
+        yPosition += 15;
+        console.log('Processing images:', timelineImages.length);
+        const maxImageWidth = pdfWidth - (margin * 2);
+        const imageSpacing = 25;
+        for (let i = 0; i < timelineImages.length; i++) {
+          try {
+            let imageUrl = timelineImages[i].imageUrl;
+            if (imageUrl.startsWith('/uploads/')) {
+              imageUrl = window.location.origin + imageUrl;
+            }
+            console.log('Processing image from URL:', imageUrl);
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            await new Promise((resolve, reject) => {
+              img.onload = () => {
+                try {
+                  const aspectRatio = img.width / img.height;
+                  let imageWidth = maxImageWidth;
+                  let imageHeight = imageWidth / aspectRatio;
+                  if (yPosition + imageHeight + 20 > pageHeight - margin) {
+                    addNewPage();
+                    yPosition = margin;
+                  }
+                  const canvas = document.createElement('canvas');canvas.width = img.width;
+                  canvas.height = img.height;
+                  const ctx = canvas.getContext('2d');
+                  ctx?.drawImage(img, 0, 0);                  
+                  if (timelineImages[i].caption) {
+                    pdf.setFontSize(14); 
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.text(
+                      timelineImages[i].caption || '',
+                      pdfWidth / 2,
+                      yPosition,
+                      { align: 'center', maxWidth: maxImageWidth }
+                    );
+                    yPosition += 5; 
+                  }
+                  const imgData = canvas.toDataURL('image/jpeg');
+                  pdf.addImage(
+                    imgData,
+                    'JPEG',
+                    margin,
+                    yPosition,
+                    imageWidth,
+                    imageHeight
+                  );
+                  yPosition += imageHeight + 5;
+                  yPosition += imageSpacing;
+                  resolve(true);
+                } catch (err) {
+                  console.error("Error drawing image:", err);
+                  reject(err);
+                }
+              };
+              img.onerror = (err) => {
+                console.error(`Error loading image ${i}:`, err);
+                reject(err);
+              };
+              img.src = imageUrl;
+            }).catch(err => {
+              console.error(`Failed to load image ${i}:`, err);
+            });
+          } catch (error) {
+            console.error(`Error processing image ${i}:`, error);
+            continue; 
+          }
+        }
+      } catch (error) {
+        console.error('Error in PDF image processing:', error);
+        toast({
+          title: "Warning",
+          description: "Some images could not be included in the export",
+          variant: "destructive",
+        });
+      }
+    } else {
+      console.log('Image export conditions not met:', {
+        includeImages: exportOptions.includeImages,
+        hasTimelineImages: !!timelineImages,
+        timelineImagesLength: timelineImages?.length
+      });
+    }
+    if (exportOptions.includeUserInfo && settingsExportFooterText) {
+      const footerText = settingsExportFooterText;
+      pdf.setFontSize(10);
+      pdf.setTextColor(64, 64, 64);
+      pdf.text(footerText, pdfWidth / 2, pageHeight - margin, { align: 'center' });
+    }
+
+    // Add footer to the last page
+    addFooter(pageNumber);
+
+    pdf.save(`${getFormattedFilename()}.pdf`);
+  };
+
+  const exportToWord = async () => {
+    const paragraphs: Paragraph[] = [
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: weddingInfo.type || 'Event',
+            bold: true,
+            size: 32,
+          }),
+          new TextRun({
+            text: ' Timeline',
+            size: 32,
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+      }),
+    ];
+
+    if (weddingInfo.names) {
+      paragraphs.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: weddingInfo.names,
+              size: 24,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { line: 360 },
+        })
+      );
+    }
+
+    if (weddingInfo.date) {
+      paragraphs.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: format(new Date(weddingInfo.date), 'EEEE d MMMM yyyy'),
+              size: 20,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { line: 360, after: 400 },
+        })
+      );
+    }
+
+    const items = isTemplate && propItems ? propItems : timelineItems;
+    const sortedItems = [...items].sort((a, b) =>
+      a.startTime.localeCompare(b.startTime)
+    );
+
+    let currentCategory = '';
+
+    sortedItems.forEach((item, index) => {
+      // Add category header if grouping by category and we're at a new category
+      if (exportOptions.groupByCategory && categories.length > 0) {
+        if (item.category !== currentCategory) {
+          currentCategory = item.category || 'Uncategorized';
+
+          // Add category header with proper styling
+          paragraphs.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: currentCategory,
+                  bold: true,
+                  size: 28,
+                  color: '444444',
+                }),
+              ],
+              spacing: {
+                before: index === 0 ? 400 : 600,
+                after: 200,
+              },
+              border: {
+                bottom: {
+                  color: '888888',
+                  space: 1,
+                  style: 'single',
+                  size: 6,
+                },
+              },
+            })
+          );
+        }
+      }
+
+      // Add each event to the document
+      paragraphs.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: item.startTime,
+              bold: true,
+            }),
+            new TextRun({
+              text: ` - ${item.title}`,
+              bold: true,
+            }),
+          ],
+          spacing: {
+            before: (index === 0 || item.category !== sortedItems[Math.max(0, index - 1)].category) && exportOptions.groupByCategory ? 200 : 400,
+            after: 0,
+          },
+        })
+      );
+
+      if (item.description && exportOptions.showDescriptions) {
+        paragraphs.push(
+          new Paragraph({
+            text: item.description,
+            spacing: {
+              before: 100,
+              after: 0,
+            },
+          })
+        );
+      }
+
+      if (item.location) {
+        paragraphs.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `Location: `,
+                italics: true,
+              }),
+              new TextRun({
+                text: item.location,
+                italics: true,
+              }),
+            ],
+            spacing: {
+              before: 100,
+              after: 200,
+            },
+          })
+        );
+      }
+    });
+
+    const eventType = reduxEventTypes.find(et => et.type === weddingInfo.type);
+    if (exportOptions.includeUserInfo && eventType?.customFields) {
+      paragraphs.push(
+        new Paragraph({
+          text: 'Timeline Details',
+          heading: HeadingLevel.HEADING_2,
+          spacing: {
+            after: 200,
+          },
+        })
+      );
+
+      eventType.customFields.forEach(field => {
+        const value = weddingInfo.customFieldValues?.[field.id];
+        if (value !== undefined && value !== null) {
+          let displayValue = value;
+          if (field.type === 'date') {
+            displayValue = format(new Date(value as string), 'PPP');
+          } else if (field.type === 'boolean') {
+            displayValue = value ? 'Yes' : 'No';
+          }
+
+          paragraphs.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `${field.name}: `,
+                  bold: true,
+                }),
+                new TextRun({
+                  text: displayValue.toString(),
+                }),
+              ],
+              spacing: {
+                after: 200,
+              },
+            })
+          );
+        }
+      });
+    }
+
+    if (exportOptions.includeImages && timelineImages && timelineImages.length > 0) {
+      paragraphs.push(
+        new Paragraph({
+          text: "",
+          pageBreakBefore: true,
+        })
+      );
+
+      paragraphs.push(
+        new Paragraph({
+          text: "Timeline Images",
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 400, after: 200 },
+        })
+      );
+
+      console.log(`Processing ${timelineImages.length} images for Word export`);
+
+      for (let i = 0; i < timelineImages.length; i++) {
+        try {
+          const imageUrl = timelineImages[i].imageUrl.startsWith('/uploads/')
+            ? `${window.location.protocol}//${window.location.host}${timelineImages[i].imageUrl}`
+            : timelineImages[i].imageUrl;
+
+          console.log('Processing Word image:', imageUrl);
+
+          const response = await fetch(imageUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.statusText}`);
+          }
+
+          const blob = await response.blob();
+          const arrayBuffer = await blob.arrayBuffer();
+
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = URL.createObjectURL(blob);
+          });
+
+          const maxWidth = 400;
+          const aspectRatio = img.width / img.height;
+          const height = maxWidth / aspectRatio;
+
+          const imageRun = new ImageRun({
+            data: new Uint8Array(arrayBuffer),
+            transformation: {
+              width: maxWidth,
+              height: height,
+            },
+          });
+
+          paragraphs.push(
+            new Paragraph({
+              children: [imageRun],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 200, after: 100 },
+            })
+          );
+
+          URL.revokeObjectURL(img.src);
+
+          if (timelineImages[i].caption) {
+            paragraphs.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: timelineImages[i].caption || '',
+                    size: 20,
+                  }),
+                ],
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 0, after: 200 },
+              })
+            );
+          }
+        } catch (error) {
+          console.error(`Error processing image ${i} for Word export:`, error);
+          paragraphs.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Failed to load image ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                  color: "FF0000",
+                }),
+              ],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 100, after: 100 },
+            })
+          );
+          continue;
+        }
+      }
+    }
+
+    if (exportOptions.includeUserInfo && settingsExportFooterText) {
+      paragraphs.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: settingsExportFooterText,
+              size: 20,
+              color: '808080',
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 480, after: 240 },
+        })
+      );
+    }
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: paragraphs,
+      }],
+    });
+
+    Packer.toBlob(doc).then(blob => {
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${getFormattedFilename()}.docx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    });
+  };
+
+  const saveAsTemplate = async () => {
+    if (!templateName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a template name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const template = {
+      title: templateName,
+      events: timelineItems.map(item => ({
+        startTime: item.startTime,
+        duration: item.duration,
+        title: item.title,
+        description: item.description,
+        location: item.location,
+        type: item.type,
+        category: item.category,
+        imageUrl: item.imageUrl,
+        caption: item.caption,
+      })),
+      categories: categories.map(cat => ({
+        name: cat.name,
+        description: cat.description,
+        order: cat.order
+      }))
+    };
+
+    try {
+      const response = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(template)
+      });
+
+      if (!response.ok) throw new Error('Failed to save template');
+
+      toast({
+        title: "Success",
+        description: "Timeline saved as template",
+      });
+      setSaveTemplateDialogOpen(false);
+      setTemplateName('');
+
+      await queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCategoryToggle = async (checked: boolean) => {
+    console.log("Category toggle clicked. New state:", checked);
+    setLocalShowCategories(checked);
+    setShowCategories(checked);
+
+    const endpoint = isTemplate ? '/api/templates/state' : '/api/timeline/state';
+    try {
+      await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          showCategories: checked,
+          categories
+        })
+      });
+    } catch (error) {
+      console.error('Error saving state:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save category state",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const { data: templatesData, isLoading: isTemplatesLoading, error: templatesError } = useQuery({
+    queryKey: ['/api/templates'],
+    queryFn: async () => {
+      const response = await fetch('/api/templates');
+      if (!response.ok) {
+        throw new Error('Failed to fetch templates');
+      }
+      return response.json();
+    }
+  });
+
+  const templates: Template[] = Array.isArray(templatesData) ? templatesData : [];
+
+  const handleSort = () => {
+    if (isTemplate && setTemplateItems && propItems) {
+      const sortedItems = [...propItems].sort((a, b) => {
+        const timeA = a.startTime.split(':').map(Number);
+        const timeB = b.startTime.split(':').map(Number);
+        return (timeA[0] * 60 + timeA[1]) - (timeB[0] * 60 + timeB[1]);
+      });
+      setTemplateItems(sortedItems);
+    } else {
+      dispatch(sortItems());
+    }
+  };
+
+  const timeAdjustments = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
+
+  const handleUpdateItem = (id: string, updates: Partial<TimelineItem>) => {
+    if (isTemplate && setTemplateItems && propItems) {
+      const updatedItems = propItems.map(item =>
+        item.id === id ? { ...item, ...updates } : item
+      );
+      setTemplateItems(updatedItems);
+    } else {
+      dispatch(updateItem({ id, updates }));
+    }
+  };
+
+  const handleDeleteItem = (id: string) => {
+    dispatch(deleteItem(id));
+  };
+
+  const handleMoveItem = (dragIndex: number, hoverIndex: number) => {
+    dispatch(moveItem({ dragIndex, hoverIndex }));
+  };
+
+  const getFormattedFilename = () => {
+    const baseName = weddingInfo.names
+      ? `${weddingInfo.names} Timeline`
+      : `${weddingInfo.type || 'Event'} Timeline`;
+
+    const datePart = weddingInfo.date
+      ? ` - ${format(new Date(weddingInfo.date), 'd MMMM yyyy')}`
+      : '';
+
+    return `${baseName}${datePart}`;
+  };
+
+  // Add preview generation function
+  const generatePreview = async () => {
+    const items = isTemplate && propItems ? propItems : timelineItems;
+    const sortedItems = [...items].sort((a, b) =>
+      a.startTime.localeCompare(b.startTime)
+    );
+
+    let preview = '';
+
+    if (exportOptions.includeUserInfo) {
+      const eventType = weddingInfo.type || 'Event';
+      preview += `${eventType} Timeline\n`;
+      if (weddingInfo.names) {
+        preview += `${weddingInfo.names}\n`;
+      }
+      if (weddingInfo.date) preview += `${format(new Date(weddingInfo.date), 'EEEE d MMMM yyyy')}\n`;
+      preview += '\n';
+    }
+
+    let currentCategory = '';
+    sortedItems.forEach(item => {
+      if (exportOptions.showCategories && item.category && item.category !== currentCategory) {
+        currentCategory = item.category;
+        preview += `\n${currentCategory}\n`;
+      }
+
+      preview += `${item.startTime}`;
+      if (exportOptions.showEndTimes) {
+        preview += ` - ${calculateEndTime(item.startTime, item.duration)}`;
+      }
+      
+      // Update to match Word Document format with duration in brackets after title
+      const titleText = exportOptions.showDurations
+        ? `${item.title} (${item.duration} minutes)`
+        : item.title;
+      
+      preview += `\t${titleText}\n`;
+
+      if (exportOptions.showDescriptions && item.description) {
+        preview += `  ${item.description}\n`;
+      }
+      if (exportOptions.showLocations && item.location) {
+        preview += `  Location: ${item.location}\n`;
+      }
+      preview += '\n';
+    });
+
+    return preview;
+  };
+
+  // Export dialog UI
+  const renderExportDialog = () => (
+    <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Export Timeline</DialogTitle>
+          <DialogDescription>
+            Choose your export options and format
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-6 py-4">
+          <div className="grid gap-4">
+            <h3 className="font-medium">Content Options</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="show-categories"
+                  checked={exportOptions.showCategories}
+                  onCheckedChange={(checked) =>
+                    setExportOptions({ ...exportOptions, showCategories: checked })
+                  }
+                />
+                <Label htmlFor="show-categories">Show Categories</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="show-durations"
+                  checked={exportOptions.showDurations}
+                  onCheckedChange={(checked) =>
+                    setExportOptions({ ...exportOptions, showDurations: checked })
+                  }
+                />
+                <Label htmlFor="show-durations">Show Durations</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="show-descriptions"
+                  checked={exportOptions.showDescriptions}
+                  onCheckedChange={(checked) =>
+                    setExportOptions({ ...exportOptions, showDescriptions: checked })
+                  }
+                />
+                <Label htmlFor="show-descriptions">Show Descriptions</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="show-locations"
+                  checked={exportOptions.showLocations}
+                  onCheckedChange={(checked) =>
+                    setExportOptions({ ...exportOptions, showLocations: checked })
+                  }
+                />
+                <Label htmlFor="show-locations">Show Locations</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="show-end-times"
+                  checked={exportOptions.showEndTimes}
+                  onCheckedChange={(checked) =>
+                    setExportOptions({ ...exportOptions, showEndTimes: checked })
+                  }
+                />
+                <Label htmlFor="show-end-times">Show End Times</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="include-user-info"
+                  checked={exportOptions.includeUserInfo}
+                  onCheckedChange={(checked) =>
+                    setExportOptions({ ...exportOptions, includeUserInfo: checked })
+                  }
+                />
+                <Label htmlFor="include-user-info">Include Event Info</Label>
+              </div>
+            </div>
+          </div>
+
+          {!isTemplate && (
+            <div className="grid gap-4">
+              <h3 className="font-medium">Images</h3>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="include-images"
+                  checked={exportOptions.includeImages}
+                  onCheckedChange={(checked) =>
+                    setExportOptions({ ...exportOptions, includeImages: checked })
+                  }
+                />
+                <Label htmlFor="include-images">Include Images</Label>
+              </div>
+            </div>
+          )}
+
+          <Tabs defaultValue="preview" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="preview">Preview</TabsTrigger>
+              <TabsTrigger value="export">Export</TabsTrigger>
+            </TabsList>
+            <TabsContent value="preview" className="mt-4">
+              <ScrollArea className="h-[300px] w-full rounded-md border p-4">
+                <pre className="whitespace-pre-wrap font-mono text-sm">
+                  {previewContent}
+                </pre>
+              </ScrollArea>
+            </TabsContent>
+            <TabsContent value="export" className="mt-4">
+              <div className="flex flex-col gap-4">
+                <Button
+                  onClick={exportToCSV}
+                  className="w-full"
+                  variant="outline"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Export to CSV
+                </Button>
+                <Button
+                  onClick={exportToPDF}
+                  className="w-full"
+                >
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Export to PDF
+                </Button>
+                <Button
+                  onClick={exportToWord}
+                  className="w-full"
+                >
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Export to Word
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
+  const handleUpdateCustomFields = (itemId: string, customFieldValues: Record<string, string | number | boolean | null>) => {
+    if (isTemplate && setTemplateItems && propItems) {
+      const updatedItems = propItems.map(item =>
+        item.id === itemId ? { ...item, customFieldValues } : item
+      );
+      setTemplateItems(updatedItems);
+    } else {
+      dispatch(updateItem({id: itemId, updates: {customFieldValues}}));
+    }
+  };
+
+  const displayItems = isTemplate && propItems ? propItems : timelineItems;
+  const handleSortEnd = (result: any) => {
+    if (!result?.destination) return;
+    if (isTemplate && setTemplateItems && propItems) {
+      const sortedItems = [...propItems];
+      const [removed] = sortedItems.splice(result.source.index, 1);
+      sortedItems.splice(result.destination.index, 0, removed);
+      setTemplateItems(sortedItems);
+    } else {
+      dispatch(moveItem({ dragIndex: result.source.index, hoverIndex: result.destination.index }));
+    }
+  }
+
+  const handleTimeShift = (minutes: { minutes: number }) => {
+    dispatch(adjustSelectedTimes(minutes));
+  };
+
+  const handleSelectAllInCategory = (category: string) => {
+    dispatch(selectAllInCategory(category));
+  };
+
+  const handleDeleteSelected = () => {
+    dispatch(deleteSelectedItems());
+  };
+
+  const handleClearSelection = () => {
+    dispatch(clearSelection());
+  };
+
+  const saveTimelineDetails = async () => {
+    if (!timelineId) return;
+
+    try {
+      const currentResponse = await fetch(`/api/timelines/${timelineId}`);
+      if (!currentResponse.ok) {
+        throw new Error('Failed to fetch current timeline data');
+      }
+      const currentData = await currentResponse.json();
+
+      const updateData = {
+        ...currentData,
+        title: weddingInfo.title || currentData.title,
+        date: weddingInfo.date || currentData.date,
+        type: weddingInfo.type || currentData.type,
+        location: weddingInfo.location || currentData.location,
+        categoriesEnabled: showCategories,
+        customFieldValues: {
+          ...currentData.customFieldValues,
+          ...(weddingInfo.customFieldValues || {})
+        },
+        events: timelineItems,
+        categories: categories,
+      };
+
+      const response = await fetch(`/api/timelines/${timelineId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save timeline details');
+      }
+
+      const savedData = await response.json();
+
+      dispatch(updateWeddingInfo({
+        ...weddingInfo,
+        customFieldValues: savedData.customFieldValues
+      }));
+
+      toast({
+        title: "Success",
+        description: "Timeline details saved successfully",
+      });
+    } catch (error) {
+      console.error('Error saving timeline details:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save timeline details",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => dispatch(undo())}
+            disabled={!canUndo}
+            className="bg-white dark:bg-slate-800"
+          >
+            <Undo2 className="w-4 h-4 mr-2" /> Undo
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => dispatch(redo())}
+            disabled={!canRedo}
+            className="bg-white dark:bg-slate-800"
+          >
+            <Redo2 className="w-4 h-4 mr-2" /> Redo
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSort}
+            className="bg-white dark:bg-slate-800"
+          >
+            <SortAsc className="w-4 h-4 mr-2" /> Sort by Time
+          </Button>
+
+          {!isTemplate && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSaveTemplateDialogOpen(true)}
+                className="bg-white dark:bg-slate-800"
+              >
+                <Save className="w-4 h-4 mr-2" /> Save as Template
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="bg-white dark:bg-slate-800">
+                    Templates {isTemplatesLoading && <span className="ml-2 animate-spin">...</span>}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  {templatesError ? (
+                    <DropdownMenuItem disabled>Error loading templates</DropdownMenuItem>
+                  ) : templates.length === 0 ? (
+                    <DropdownMenuItem disabled>No templates available</DropdownMenuItem>
+                  ) : (
+                    templates.map((template: Template) => (
+                      <DropdownMenuItem key={template.id} onSelect={() => applyTemplate(template.id)}>
+                        {template.title}
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowExportDialog(true)}
+                className="bg-white dark:bg-slate-800"
+              >
+                <Download className="w-4 h-4 mr-2" /> Export
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReset}
+                className="bg-white dark:bg-slate-800"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" /> Reset
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {!isTemplate && (
+        <>
+          <div className="text-center mb-8">
+            <Input
+              type="text"
+              placeholder="Event Names (e.g., Jane & John)"
+              value={weddingInfo.names || ''}
+              onChange={(e) => dispatch(updateWeddingInfo({
+                names: e.target.value,
+                date: weddingInfo.date,
+                type: weddingInfo.type,
+                location: weddingInfo.location
+              }))}
+              className="font-serif text-2xl text-center mb-4"
+            />
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative w-96">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full font-serif text-xl justify-center h-auto py-2"
+                    >
+                      {weddingInfo.date
+                        ? format(new Date(weddingInfo.date), 'EEEE d MMMM yyyy')
+                        : "Select date..."}
+                      <CalendarIcon className="ml-auto h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">

@@ -1,0 +1,16 @@
+/* Vendor section refresh animation */
+.vendor-section.refreshing {
+  animation: refresh-pulse 0.3s ease-in-out;
+}
+
+@keyframes refresh-pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+} 

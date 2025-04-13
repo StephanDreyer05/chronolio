@@ -1,0 +1,94 @@
+Create a Webhook
+POST
+/v1/webhooks
+Creates a webhook.
+
+Attributes
+url
+Required
+A valid URL of the endpoint that should receive webhook events.
+
+events
+Required
+An array of webhook event types that should be sent to the webhook endpoint.
+
+See the list of available event types.
+
+secret
+Required
+A string used by Lemon Squeezy to sign requests for increased security.
+
+Learn about receiving signed requests.
+
+The secret is never returned in the API. To view the secret of a webhook, open the webhook in your dashboard.
+
+test_mode
+Set this to true if the webhook should be created in test mode.
+
+curl -X "POST" "https://api.lemonsqueezy.com/v1/webhooks" \
+  -H 'Accept: application/vnd.api+json' \
+  -H 'Content-Type: application/vnd.api+json' \
+  -H 'Authorization: Bearer {api_key}' \
+  -d $'{
+  "data": {
+    "type": "webhooks",
+    "attributes": {
+      "url": "https://mysite.com/webhooks/",
+      "events": [
+        "order_created",
+        "subscription_created",
+        "subscription_updated",
+        "subscription_expired"
+      ],
+      "secret": "SIGNING_SECRET"
+    },
+    "relationships": {
+      "store": {
+        "data": {
+          "type": "stores",
+          "id": "1"
+        }
+      }
+    }
+  }
+}'
+Returns
+Returns a Webhook object.
+
+{
+  "jsonapi": {
+    "version": "1.0"
+  },
+  "links": {
+    "self": "https://api.lemonsqueezy.com/v1/webhooks/1"
+  },
+  "data": {
+    "type": "webhooks",
+    "id": "1",
+    "attributes": {
+      "store_id": 1,
+      "url": "https://mysite.com/webhooks/",
+      "events": [
+        "order_created",
+        "subscription_created",
+        "subscription_updated",
+        "subscription_expired"
+      ],
+      "last_sent_at": null,
+      "created_at": "2022-06-07T08:32:47.000000Z",
+      "updated_at": "2022-06-07T08:32:47.000000Z",
+      "test_mode": false
+    },
+    "relationships": {
+      "store": {
+        "links": {
+          "related": "https://api.lemonsqueezy.com/v1/webhooks/1/store",
+          "self": "https://api.lemonsqueezy.com/v1/webhooks/1/relationships/store"
+        }
+      }
+    },
+    "links": {
+      "self": "https://api.lemonsqueezy.com/v1/webhooks/1"
+    }
+  }
+}

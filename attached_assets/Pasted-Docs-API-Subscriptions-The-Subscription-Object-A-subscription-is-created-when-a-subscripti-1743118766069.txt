@@ -1,0 +1,169 @@
+Docs
+→
+API
+→
+Subscriptions
+The Subscription Object
+A subscription is created when a subscription product is purchased. Bills the customer on a recurring basis.
+
+A subscription belongs to a Store and is associated with a Customer, an Order, an Order Item, a Product, a Variant, Subscription invoices and Subscription items.
+
+Attributes
+store_id
+The ID of the store this subscription belongs to.
+
+customer_id
+The ID of the customer this subscription belongs to.
+
+order_id
+The ID of the order associated with this subscription.
+
+order_item_id
+The ID of the order item associated with this subscription.
+
+product_id
+The ID of the product associated with this subscription.
+
+variant_id
+The ID of the variant associated with this subscription.
+
+product_name
+The name of the product.
+
+variant_name
+The name of the variant.
+
+user_name
+The full name of the customer.
+
+user_email
+The email address of the customer.
+
+status
+The status of the subscription. One of
+
+on_trial
+active
+paused - The subscription’s payment collection has been paused. See the pause attribute below for more information.
+past_due - A renewal payment has failed. The subscription will go through 4 payment retries over the course of 2 weeks. If a retry is successful, the subscription’s status changes back to active. If all four retries are unsuccessful, the status is changed to unpaid.
+unpaid - Payment recovery has been unsuccessful in capturing a payment after 4 attempts. If dunning is enabled in your store, your dunning rules now will determine if the subscription becomes expired after a certain period. If dunning is turned off, the status remains unpaid (it is up to you to determine what this means for users of your product).
+cancelled - The customer or store owner has cancelled future payments, but the subscription is still technically active and valid (on a “grace period”). The ends_at value shows the date-time when the subscription is scheduled to expire.
+expired - The subscription has ended (either it had previously been cancelled and the grace period created from its final payment has run out, or it was previously unpaid and the subscription was not re-activated during dunning). The ends_at value shows the date-time when the subscription expired. Customers should no longer have access to your product.
+status_formatted
+The title-case formatted status of the subscription.
+
+For example, when status is active, status_formatted will be Active and past_due will be Past due.
+
+card_brand
+Lowercase brand of the card used to pay for the latest subscription payment. One of
+
+visa
+mastercard
+amex
+discover
+jcb
+diners
+unionpay
+Will be empty for non-card payments.
+
+card_last_four
+The last 4 digits of the card used to pay for the latest subscription payment. Will be empty for non-card payments.
+
+pause
+An object containing the payment collection pause behaviour options for the subscription, if set. Options include:
+
+mode - Defines payment pause behaviour, can be one of:
+
+void - If you can’t offer your services for a period of time (for maintenance as an example), you can void invoices so your customers aren’t charged.
+free - Offer your subscription services for free, whilst halting payment collection.
+resumes_at - An ISO 8601 formatted date-time string indicating when the subscription will continue collecting payments.
+
+For a subscription that isn’t in the paused state, the pause object will be null.
+
+cancelled
+A boolean indicating if the subscription has been cancelled.
+
+When cancelled is true:
+
+status will be cancelled
+ends_at will be populated with a date-time string
+trial_ends_at
+If the subscription has a free trial (status is on_trial), this will be an ISO 8601 formatted date-time string indicating when the trial period ends. For all other status values, this will be null.
+
+billing_anchor
+An integer representing a day of the month (21 equals 21st day of the month). This is the day on which subscription invoice payments are collected.
+
+first_subscription_item
+An object representing the first subscription item belonging to this subscription.
+
+id - The ID of the subscription item.
+subscription_id - The ID of the subscription.
+price_id - The ID of the price
+quantity - The quantity of the subscription item.
+created_at - An ISO 8601 formatted date-time string indicating when the subscription item was created.
+updated_at - An ISO 8601 formatted date-time string indicating when the subscription item was last updated.
+Will be null if there is no subscription item, for example if the subscription is currently in a free trial.
+
+urls
+An object of customer-facing URLs for managing the subscription. It contains:
+
+update_payment_method - A pre-signed URL for managing payment and billing information for the subscription. This can be used in conjunction with Lemon.js to allow your customer to change their billing information from within your application. The URL is valid for 24 hours from time of request.
+customer_portal - A pre-signed URL to the Customer Portal, which allows customers to fully manage their subscriptions and billing information from within your application. The URL is valid for 24 hours from time of request.
+update_customer_portal - A pre-signed URL for upgrading/downgrading the subscription in the Customer Portal. This is only used for subscriptions setup through PayPal payment and will return null on all other payment types. The URL is valid for 24 hours from time of request.
+renews_at
+An ISO 8601 formatted date-time string indicating the end of the current billing cycle, and when the next invoice will be issued. This also applies to past_due subscriptions; renews_at will reflect the next renewal charge attempt.
+
+ends_at
+If the subscription has as status of cancelled or expired, this will be an ISO 8601 formatted date-time string indicating when the subscription expires (or expired). For all other status values, this will be null.
+
+created_at
+An ISO 8601 formatted date-time string indicating when the object was created.
+
+updated_at
+An ISO 8601 formatted date-time string indicating when the object was last updated.
+
+test_mode
+A boolean indicating if the object was created within test mode.
+
+{
+  "type": "subscriptions",
+  "id": "1",
+  "attributes": {
+    "store_id": 1,
+    "customer_id": 1,
+    "order_id": 1,
+    "order_item_id": 1,
+    "product_id": 1,
+    "variant_id": 1,
+    "product_name": "Lemonade",
+    "variant_name": "Citrus Blast",
+    "user_name": "John Doe",
+    "user_email": "johndoe@example.com",
+    "status": "active",
+    "status_formatted": "Active",
+    "card_brand": "visa",
+    "card_last_four": "42424",
+    "pause": null,
+    "cancelled": false,
+    "trial_ends_at": null,
+    "billing_anchor": 12,
+    "first_subscription_item": {
+      "id": 1,
+      "subscription_id": 1,
+      "price_id": 1,
+      "quantity": 5,
+      "created_at": "2021-08-11T13:47:28.000000Z",
+      "updated_at": "2021-08-11T13:47:28.000000Z"
+    },
+    "urls": {
+      "update_payment_method": "https://my-store.lemonsqueezy.com/subscription/1/payment-details?expires=1666869343&signature=9985e3bf9007840aeb3951412be475abc17439c449c1af3e56e08e45e1345413",
+      "customer_portal": "https://my-store.lemonsqueezy.com/billing?expires=1666869343&signature=82ae290ceac8edd4190c82825dd73a8743346d894a8ddbc4898b97eb96d105a5",
+      "customer_portal_update_subscription": "https://my-store.lemonsqueezy.com/billing/1/update?expires=1666869343&signature=e4fabc7ee703664d644bba9e79a9cd3dd00622308b335f3c166787f0b18999f2"
+    },
+    "renews_at": "2022-11-12T00:00:00.000000Z",
+    "ends_at": null,
+    "created_at": "2021-08-11T13:47:27.000000Z",
+    "updated_at": "2021-08-11T13:54:19.000000Z",
+    "test_mode": false
+  }
+}
