@@ -1,7 +1,7 @@
 {
   "version": 2,
   "framework": null,
-  "buildCommand": "node vercel-custom-build.js && node vercel-aws-fix.js",
+  "buildCommand": "npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner && node vercel-custom-build.js",
   "installCommand": "echo 'Using custom buildCommand instead'",
   "outputDirectory": "public",
   "devCommand": "npm run dev",

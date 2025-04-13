@@ -3415,6 +3415,11 @@ export function registerRoutes(app: Express): Server {
   // Add a route to serve images stored with the memory-storage-placeholder prefix
   app.get('/api/images/:filename', async (req, res) => {
     try {
+      // Add CORS headers
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+      
       const filename = req.params.filename;
       
       // Check if this is a local/fallback image (memory-storage-placeholder prefix)
