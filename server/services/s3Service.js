@@ -27,6 +27,16 @@ const mockS3Service = {
       mockUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiPkltYWdlIFVuYXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==',
       error: 'AWS SDK not available'
     };
+  },
+  
+  uploadFile: async (fileBuffer, key, contentType) => {
+    console.log('Using mock S3 service - uploadFile for key:', key);
+    return { 
+      success: false, 
+      key: key,
+      error: 'AWS SDK not available',
+      usingMock: true 
+    };
   }
 };
 
@@ -150,6 +160,45 @@ export async function initializeS3Service() {
           url: null, 
           error: String(error),
           mockUrl: mockResult.mockUrl
+        };
+      }
+    };
+    
+    // Add upload file implementation
+    s3Service.uploadFile = async (fileBuffer, key, contentType) => {
+      try {
+        if (!fileBuffer) {
+          throw new Error('File buffer is required');
+        }
+        
+        if (!key) {
+          throw new Error('Key is required');
+        }
+        
+        // Import the PutObjectCommand dynamically
+        const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+        
+        const command = new PutObjectCommand({
+          Bucket: bucketName,
+          Key: key,
+          Body: fileBuffer,
+          ContentType: contentType || 'application/octet-stream'
+        });
+        
+        await s3Client.send(command);
+        
+        console.log(`Successfully uploaded file to S3: ${key}`);
+        
+        return { 
+          success: true, 
+          key: key
+        };
+      } catch (error) {
+        console.error('Error uploading file to S3:', error);
+        return { 
+          success: false, 
+          key: key,
+          error: String(error)
         };
       }
     };

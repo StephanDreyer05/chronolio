@@ -1158,7 +1158,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Update the image upload endpoint to correctly handle remaining slots
+  // Update the image upload endpoint to correctly handle image uploads and S3 storage
   app.post('/api/timelines/:id/images', upload.array('images', 10), async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
@@ -1194,24 +1194,73 @@ export function registerRoutes(app: Express): Server {
         size: f.size
       })));
 
-      // This is a placeholder - in a production environment, you should:
-      // 1. Upload these files to a cloud storage service like S3, Cloudinary, or Vercel Blob
-      // 2. Store the URL from the cloud storage in the database
-      // For now, we'll create a mock URL
+      // Import the S3 service
+      const s3Service = (await import('./services/s3Service.js')).default;
       
+      // Upload each file to S3 and store results
+      const uploadResults = await Promise.all(
+        filesToProcess.map(async (file, index) => {
+          // Generate a unique S3 key
+          const timestamp = Date.now();
+          const randomString = Math.random().toString(36).substring(2, 15);
+          const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '-');
+          const key = `timelines/${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
+          
+          try {
+            // Upload the file to S3
+            const uploadResult = await s3Service.uploadFile(
+              file.buffer,
+              key,
+              file.mimetype
+            );
+            
+            if (!uploadResult.success) {
+              console.warn('S3 upload failed, using fallback storage:', uploadResult.error);
+              return {
+                imageUrl: `memory-storage-placeholder-${sanitizedFileName}`,
+                caption: captions[file.originalname] || '',
+                order: parseInt(count.toString()) + index,
+                uploadFailed: true
+              };
+            }
+            
+            return {
+              imageUrl: key, // Store the S3 key as the image URL
+              caption: captions[file.originalname] || '',
+              order: parseInt(count.toString()) + index,
+              uploadFailed: false
+            };
+          } catch (error) {
+            console.error('Error during file upload:', error);
+            return {
+              imageUrl: `memory-storage-placeholder-${sanitizedFileName}`,
+              caption: captions[file.originalname] || '',
+              order: parseInt(count.toString()) + index,
+              uploadFailed: true
+            };
+          }
+        })
+      );
+      
+      // Insert the results into the database
       const insertedImages = await db.insert(timelineImages)
         .values(
-          filesToProcess.map((file, index) => ({
+          uploadResults.map(result => ({
             timelineId,
-            // This is a placeholder URL - in production, use actual cloud storage URLs
-            imageUrl: `memory-storage-placeholder-${file.originalname}`,
-            caption: captions[file.originalname] || '',
-            order: parseInt(count.toString()) + index,
+            imageUrl: result.imageUrl,
+            caption: result.caption,
+            order: result.order
           }))
         )
         .returning();
 
-      res.json(insertedImages);
+      // Add a flag to indicate which uploads used fallback storage
+      const responseImages = insertedImages.map((img, index) => ({
+        ...img,
+        usingFallbackStorage: uploadResults[index].uploadFailed
+      }));
+
+      res.json(responseImages);
     } catch (error) {
       console.error('Error uploading timeline images:', error);
       res.status(500).json({ message: 'Failed to upload timeline images' });
@@ -3268,7 +3317,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Upload endpoint for files to S3
+  // Update the upload endpoint for files to S3
   app.post('/api/s3/upload/:timelineId', upload.single('file'), async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
@@ -3291,13 +3340,34 @@ export function registerRoutes(app: Express): Server {
       const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '-');
       const key = `timelines/${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
       
-      // Here you would upload the file to S3
-      // For now, we'll just return the key as if it was uploaded
+      // Import the S3 service
+      const s3Service = (await import('./services/s3Service.js')).default;
       
+      // Upload the file to S3
+      const uploadResult = await s3Service.uploadFile(
+        file.buffer,
+        key,
+        file.mimetype
+      );
+      
+      if (!uploadResult.success) {
+        console.error('S3 upload failed:', uploadResult.error);
+        // Store in database anyway, but with a special prefix to indicate it's a local file
+        res.json({
+          success: true,
+          key: `memory-storage-placeholder-${sanitizedFileName}`,
+          isLocal: true,
+          message: 'Local storage fallback used due to S3 upload failure',
+          originalError: uploadResult.error
+        });
+        return;
+      }
+      
+      // Return success with the S3 key
       res.json({
         success: true,
         key: key,
-        message: 'Server-side upload simulation successful'
+        isLocal: false
       });
     } catch (error) {
       console.error('Error uploading to S3:', error);
@@ -3339,6 +3409,62 @@ export function registerRoutes(app: Express): Server {
         message: 'Failed to delete file',
         error: error instanceof Error ? error.message : String(error)
       });
+    }
+  });
+
+  // Add a route to serve images stored with the memory-storage-placeholder prefix
+  app.get('/api/images/:filename', async (req, res) => {
+    try {
+      const filename = req.params.filename;
+      
+      // Check if this is a local/fallback image (memory-storage-placeholder prefix)
+      if (filename.startsWith('memory-storage-placeholder-')) {
+        // For fallback images, look them up in the database and serve a placeholder
+        res.set('Content-Type', 'image/svg+xml');
+        const placeholderSvg = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+          <rect width="200" height="200" fill="#f0f0f0"/>
+          <text x="50%" y="50%" font-family="Arial" font-size="20" text-anchor="middle" fill="#999999">Image Unavailable</text>
+          <text x="50%" y="70%" font-family="Arial" font-size="12" text-anchor="middle" fill="#999999">${filename.replace('memory-storage-placeholder-', '')}</text>
+        </svg>`;
+        return res.send(placeholderSvg);
+      }
+      
+      // For S3 images, redirect to the signed URL
+      const s3Service = (await import('./services/s3Service.js')).default;
+      const urlResult = await s3Service.generateSignedUrl(filename);
+      
+      if (urlResult.success && urlResult.url) {
+        return res.redirect(urlResult.url);
+      } else if (urlResult.mockUrl) {
+        // If we got a mock URL (base64 image), send it directly
+        // Extract the content type and data from the data URL
+        const matches = urlResult.mockUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          const contentType = matches[1];
+          const base64Data = matches[2];
+          const buffer = Buffer.from(base64Data, 'base64');
+          
+          res.set('Content-Type', contentType);
+          return res.send(buffer);
+        }
+      }
+      
+      // If we couldn't get a URL, send a placeholder
+      res.set('Content-Type', 'image/svg+xml');
+      const errorSvg = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+        <rect width="200" height="200" fill="#f8d7da"/>
+        <text x="50%" y="50%" font-family="Arial" font-size="20" text-anchor="middle" fill="#721c24">Image Error</text>
+        <text x="50%" y="70%" font-family="Arial" font-size="12" text-anchor="middle" fill="#721c24">Could not load ${filename}</text>
+      </svg>`;
+      return res.send(errorSvg);
+    } catch (error) {
+      console.error('Error serving image:', error);
+      res.status(500).set('Content-Type', 'image/svg+xml');
+      const errorSvg = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+        <rect width="200" height="200" fill="#f8d7da"/>
+        <text x="50%" y="50%" font-family="Arial" font-size="20" text-anchor="middle" fill="#721c24">Server Error</text>
+      </svg>`;
+      res.send(errorSvg);
     }
   });
 

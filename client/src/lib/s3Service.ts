@@ -7,24 +7,88 @@
 
 // Fallback implementation that will be used when AWS SDK is not available
 class FallbackS3Service {
-  uploadToS3(file: File, timelineId: number): Promise<string> {
-    console.warn('Using fallback S3 service (server-side API)');
-    // Generate a mock S3 key
-    const timestamp = Date.now();
-    const randomString = Math.random().toString(36).substring(2, 15);
-    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '-');
-    return Promise.resolve(`fallback-s3-key-${timelineId}-${timestamp}-${randomString}-${sanitizedFileName}`);
+  async uploadToS3(file: File, timelineId: number): Promise<string> {
+    console.warn('Using server-side S3 upload API');
+    
+    try {
+      // Create form data for the file upload
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // Upload file using server API endpoint
+      const response = await fetch(`/api/s3/upload/${timelineId}`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server upload failed with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || 'Upload failed');
+      }
+      
+      console.log('Server-side S3 upload successful, key:', data.key);
+      return data.key;
+    } catch (error) {
+      console.error('Error using server-side S3 upload:', error);
+      // Fallback to generating a local key if server upload fails
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 15);
+      const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '-');
+      return `fallback-s3-key-${timelineId}-${timestamp}-${randomString}-${sanitizedFileName}`;
+    }
   }
 
-  deleteFromS3(key: string): Promise<void> {
-    console.warn('Using fallback S3 service (server-side API)');
-    return Promise.resolve();
+  async deleteFromS3(key: string): Promise<void> {
+    console.warn('Using server-side S3 delete API');
+    
+    try {
+      const response = await fetch(`/api/s3/object/${encodeURIComponent(key)}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server delete failed with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || 'Delete failed');
+      }
+      
+      console.log('Server-side S3 delete successful');
+    } catch (error) {
+      console.error('Error using server-side S3 delete:', error);
+    }
   }
 
-  getS3SignedUrl(key: string): Promise<string> {
-    console.warn('Using fallback S3 service (server-side API)');
-    // Return a data URL for placeholder image
-    return Promise.resolve('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiPkltYWdlIFVuYXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==');
+  async getS3SignedUrl(key: string): Promise<string> {
+    console.warn('Using server-side S3 signed URL API');
+    
+    if (!key) {
+      console.error('Empty key provided to getS3SignedUrl');
+      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiPkltYWdlIFVuYXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==';
+    }
+    
+    // If the key is a memory-storage placeholder or already a data URL, return it as is
+    if (key.startsWith('memory-storage-placeholder-') || key.startsWith('data:')) {
+      console.log('Using direct image API for fallback image', key);
+      return `/api/images/${encodeURIComponent(key)}`;
+    }
+    
+    try {
+      // Use the new unified image API endpoint
+      return `/api/images/${encodeURIComponent(key)}`;
+    } catch (error) {
+      console.error('Error getting signed URL from server:', error);
+      // Return placeholder image as fallback
+      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiPkltYWdlIFVuYXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==';
+    }
   }
 
   extractS3KeyFromUrl(imageUrl: string): string {
