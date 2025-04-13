@@ -369,22 +369,28 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
           throw new Error('Failed to upload images to server');
         }
       } else {
-        // Using real S3 keys - save them to the database
+        // For now, use the standard endpoint even when we have real S3 keys
+        // We'll need to create a server endpoint to handle S3 keys in the future
         const formData = new FormData();
-        formData.append('s3Keys', JSON.stringify(successfulUploads.map(r => r.s3Key)));
         
-        // Also send original filenames for reference
-        formData.append('filenames', JSON.stringify(
-          successfulUploads.map(r => r.file.name)
-        ));
+        // Add the S3 keys as metadata (server will ignore this for now)
+        formData.append('s3Data', JSON.stringify({
+          keys: successfulUploads.map(r => r.s3Key),
+          filenames: successfulUploads.map(r => r.file.name)
+        }));
+        
+        // Also include the actual files as fallback
+        selectedFiles.forEach(file => {
+          formData.append('images', file);
+        });
 
-        const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/s3`, {
+        const response = await fetchWithAuth(`/api/timelines/${timelineId}/images`, {
           method: 'POST',
           body: formData,
         });
 
         if (!response.ok) {
-          throw new Error('Failed to save images to database');
+          throw new Error('Failed to upload images to server');
         }
       }
 

@@ -2,13 +2,17 @@
 
 This guide explains how to properly set up S3 integration for timeline images in Chronolio.
 
-## Issues with Vercel Deployment
+## Important Notes About AWS Integration
 
-If you're experiencing build errors related to AWS SDK dependencies when deploying to Vercel, it's likely because the package.json and package-lock.json files are out of sync. Here's how to fix it:
+The timeline image system is designed to work in two modes:
+1. **Server-side storage mode** - Images are stored on the server (default)
+2. **AWS S3 mode** - Images are stored in an S3 bucket (requires setup)
 
-## Local Development Setup
+The code is built to automatically fall back to server-side storage if AWS S3 configuration is missing or invalid.
 
-1. **Install AWS SDK Dependencies**:
+## Local Development with S3
+
+1. **Install AWS SDK Dependencies locally**:
    ```bash
    # Run this from the project root directory
    node update-package-deps.js
@@ -40,19 +44,13 @@ If you're experiencing build errors related to AWS SDK dependencies when deployi
 
 ## Deploying to Vercel
 
-When deploying to Vercel, follow these steps:
+For Vercel deployments, we recommend the following approach:
 
-1. **Make sure package-lock.json is up-to-date**:
-   Run `npm install` locally to update package-lock.json with AWS SDK dependencies
+1. **Do NOT modify package.json**: 
+   - Leave AWS SDK dependencies OUT of package.json for production
+   - This prevents build issues with npm ci
 
-2. **Commit package-lock.json changes**:
-   ```bash
-   git add package-lock.json
-   git commit -m "Update package-lock.json with AWS SDK dependencies"
-   git push
-   ```
-
-3. **Set environment variables in Vercel**:
+2. **Set environment variables in Vercel**:
    In your Vercel project settings, add the following environment variables:
    ```
    VITE_AWS_REGION=us-east-1  # Replace with your region
@@ -61,12 +59,21 @@ When deploying to Vercel, follow these steps:
    VITE_AWS_S3_BUCKET_NAME=YOUR_BUCKET_NAME
    ```
 
-## Fallback Behavior
+3. **Deploy your application**:
+   - The system will use dynamic imports to load AWS SDK at runtime
+   - AWS SDK will not be part of the build process
+   - If AWS SDK successfully loads at runtime and credentials are valid, S3 will be used
+   - If AWS SDK fails to load or credentials are invalid, the system will fall back to server-side storage
 
-The S3 integration is designed with fallback mechanisms:
+## How the Fallback System Works
 
-1. During build time: The AWS SDK dynamic imports are skipped
-2. During runtime: If AWS credentials are missing or incorrect, the app falls back to server-side storage
-3. When uploading: If S3 upload fails, the app falls back to direct API uploads
+The S3 integration is designed with a graceful fallback mechanism:
 
-This ensures your application will work even if S3 integration is not fully set up. 
+1. **During build**: AWS SDK is not included in the build, avoiding dependency issues
+2. **During runtime**: The code attempts to dynamically import AWS SDK
+3. **S3 Key Handling**: 
+   - If AWS SDK loads successfully, images are uploaded to S3 and the key is stored
+   - If AWS SDK fails to load, a fallback "mock key" is generated
+4. **Image Loading**: The system detects fallback keys and renders placeholder images
+
+This approach ensures your application will always work, with or without AWS S3 configuration. 

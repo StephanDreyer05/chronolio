@@ -3,11 +3,6 @@
 # Vercel build script for Chronolio frontend
 echo "Building Chronolio frontend for Vercel deployment..."
 
-# Remove AWS SDK dependencies from package.json to avoid build issues
-echo "Removing AWS SDK dependencies from package.json for build..."
-sed -i '/"@aws-sdk\/client-s3"/d' package.json
-sed -i '/"@aws-sdk\/s3-request-presigner"/d' package.json
-
 # Install required build tools
 echo "Installing build dependencies..."
 npm ci
