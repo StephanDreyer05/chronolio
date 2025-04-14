@@ -11,7 +11,6 @@ import { initializePaymentService, handleWebhookEvent } from "./services/payment
 import path from "path";
 import dotenv from 'dotenv';
 import { initializeEmailService } from './services/email.js';
-import { initializeS3Service } from './services/s3Service.js';
 
 const app = express();
 app.use(cors());
@@ -88,8 +87,31 @@ async function initializeServices() {
   console.log('Payment service initialization:', paymentResult ? 'Success' : 'Failed');
   
   // Initialize S3 service
-  const s3Result = await initializeS3Service();
-  console.log('S3 service initialization:', s3Result ? 'Success' : 'Failed');
+  log('Initializing services...');
+  try {
+    // Try to initialize S3 service
+    const { initializeS3Service } = await import('./services/s3Service.js');
+    const s3Initialized = await initializeS3Service();
+    
+    if (!s3Initialized) {
+      log('AWS SDK initialization failed, falling back to direct S3 implementation');
+      // Import and use our direct S3 service that doesn't depend on AWS SDK
+      const s3DirectService = (await import('./services/s3DirectService.js')).default;
+      
+      // Replace the global s3Service with our direct implementation
+      const s3ServiceModule = await import('./services/s3Service.js');
+      Object.keys(s3DirectService).forEach(key => {
+        s3ServiceModule.default[key] = s3DirectService[key];
+      });
+      
+      log('S3 direct service initialized as fallback');
+    } else {
+      log('S3 service initialized successfully with AWS SDK');
+    }
+  } catch (error) {
+    console.error('Error initializing services:', error);
+    log('Services initialization failed, continuing with fallbacks');
+  }
 }
 
 // Verify database connection before proceeding
