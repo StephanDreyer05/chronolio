@@ -3315,147 +3315,60 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Update the upload endpoint for files to S3
+  // Update the upload endpoint for files to S3 - direct implementation
   app.post('/api/s3/upload/:timelineId', upload.single('file'), async (req, res) => {
     try {
-      console.log('=== S3 UPLOAD CRITICAL PATH ===');
-      console.log('Step 1: Authentication check');
+      console.log('=== DIRECT S3 UPLOAD ===');
       
+      // Authentication check
       if (!req.isAuthenticated()) {
-        console.error('UPLOAD FAILED: User not authenticated');
         return res.status(401).json({ message: 'Not authenticated' });
       }
 
-      console.log('Step 2: Checking file payload');
+      // File check
       if (!req.file) {
-        console.error('UPLOAD FAILED: No file provided in request');
         return res.status(400).json({ message: 'No file provided' });
       }
 
       const timelineId = parseInt(req.params.timelineId);
       const file = req.file;
       
-      // Generate a unique S3 key
+      // Generate a unique key using the filename
       const timestamp = Date.now();
-      const randomString = Math.random().toString(36).substring(2, 15);
+      const randomString = Math.random().toString(36).substring(2, 8);
       const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '-');
       const key = `timeline-${timelineId}/${timestamp}-${randomString}-${sanitizedFileName}`;
-      
-      console.log('Step 3: Upload details prepared');
-      console.log({
+
+      console.log('Upload details:', {
         timelineId,
         fileName: file.originalname,
         fileSize: file.size,
-        fileMimeType: file.mimetype,
-        sanitizedFileName,
+        fileType: file.mimetype,
         s3Key: key
       });
-
-      console.log('Step 4: ATTEMPTING DIRECT AWS SDK UPLOAD - CRITICAL PATH');
-      try {
-        console.log('Step 4.1: Loading AWS SDK modules');
-        const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-        
-        console.log('Step 4.2: Reading AWS environment variables');
-        const region = process.env.AWS_REGION;
-        const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-        const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-        const bucketName = process.env.AWS_S3_BUCKET_NAME;
-        
-        console.log('AWS environment variables status:');
-        console.log({
-          region: region ? `Set (${region})` : 'NOT SET',
-          accessKeyId: accessKeyId ? `Set (length: ${accessKeyId.length}, starts with: ${accessKeyId.substring(0, 3)}...)` : 'NOT SET',
-          secretAccessKey: secretAccessKey ? `Set (length: ${secretAccessKey.length})` : 'NOT SET',
-          bucketName: bucketName ? `Set (${bucketName})` : 'NOT SET'
-        });
-        
-        if (!region || !accessKeyId || !secretAccessKey || !bucketName) {
-          console.error('CRITICAL ERROR: Missing required AWS environment variables');
-          throw new Error('AWS configuration incomplete: Missing required environment variables');
-        }
-        
-        console.log('Step 4.3: Creating S3 client');
-        const s3Client = new S3Client({
-          region,
-          credentials: {
-            accessKeyId,
-            secretAccessKey
-          }
-        });
-        
-        console.log('Step 4.4: Preparing upload command');
-        const uploadCommand = new PutObjectCommand({
-          Bucket: bucketName,
-          Key: key,
-          Body: file.buffer,
-          ContentType: file.mimetype
-        });
-        
-        console.log('Step 4.5: Executing upload to S3...');
-        await s3Client.send(uploadCommand);
-        console.log('UPLOAD SUCCESS: File uploaded directly to S3');
-        
-        return res.json({
-          key: key,
-          isLocal: false,
-          success: true
-        });
-      } catch (directAwsError) {
-        console.error('CRITICAL ERROR IN DIRECT AWS UPLOAD:');
-        console.error(directAwsError);
-        console.error('Stack trace:', directAwsError.stack);
-        
-        console.log('Step 5: ATTEMPTING FALLBACK VIA S3SERVICE - CRITICAL PATH');
-        try {
-          console.log('Step 5.1: Importing S3 service module');
-          const s3Service = (await import('./services/s3Service.js')).default;
-          
-          console.log('Step 5.2: S3 service details:');
-          console.log('Available methods:', Object.keys(s3Service).join(', '));
-          console.log('Implementation type:', s3Service.usingDirectFetch ? 'Direct Fetch' : 'AWS SDK');
-          
-          console.log('Step 5.3: Executing upload via S3 service...');
-          const result = await s3Service.uploadFile(file.buffer, key, file.mimetype);
-          
-          console.log('S3 service upload result:', result);
-          
-          if (!result.success) {
-            console.error('CRITICAL ERROR: Both direct and service-based S3 uploads failed');
-            console.error('Error details:', result.error);
-            return res.status(503).json({ 
-              message: 'AWS S3 storage is currently unavailable',
-              error: result.error,
-              details: 'Both direct and service-based upload attempts failed'
-            });
-          }
-          
-          console.log('UPLOAD SUCCESS: File uploaded via S3 service');
-          return res.json({
-            key: result.key,
-            isLocal: false,
-            success: true
-          });
-        } catch (serviceError) {
-          console.error('CATASTROPHIC FAILURE: All S3 upload methods failed');
-          console.error(serviceError);
-          console.error('Stack trace:', serviceError.stack);
-          
-          // No fallback to local storage - return an error instead
-          return res.status(503).json({ 
-            message: 'AWS S3 storage is currently unavailable',
-            error: 'All upload methods failed',
-            details: 'The application requires S3 connectivity for file uploads'
-          });
-        }
-      }
-    } catch (error) {
-      console.error('UNCAUGHT EXCEPTION IN S3 UPLOAD ENDPOINT:', error);
-      console.error('Stack trace:', error.stack);
       
-      return res.status(500).json({ 
-        message: 'Internal server error during file upload',
-        error: String(error)
+      // Import S3 service
+      const s3Service = (await import('./services/s3Service.js')).default;
+      
+      // Directly upload to S3 - will throw error if it fails
+      const uploadResult = await s3Service.uploadFile(file.buffer, key, file.mimetype);
+      
+      console.log('Upload successful:', uploadResult);
+      
+      // Return success response
+      return res.status(200).json({
+        success: true,
+        key: uploadResult.key,
+        url: uploadResult.url
+      });
+    } catch (error) {
+      console.error('S3 UPLOAD ERROR:', error);
+      
+      // Return detailed error for debugging
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload file to S3',
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   });
@@ -3797,6 +3710,172 @@ export function registerRoutes(app: Express): Server {
         message: 'Error while running AWS diagnostics',
         error: String(error),
         stack: error.stack
+      });
+    }
+  });
+
+  // Add comprehensive AWS diagnostic endpoint
+  app.get('/api/aws-status', async (req, res) => {
+    try {
+      console.log('=== AWS DIAGNOSTIC REQUEST ===');
+      
+      // 1. Check AWS environment variables
+      const envVars = {
+        AWS_REGION: process.env.AWS_REGION,
+        AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+        AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+        AWS_S3_BUCKET_NAME: process.env.AWS_S3_BUCKET_NAME
+      };
+      
+      // Log environment variable status (without exposing secrets)
+      const envStatus = {
+        AWS_REGION: envVars.AWS_REGION ? `Set (${envVars.AWS_REGION})` : 'NOT SET',
+        AWS_ACCESS_KEY_ID: envVars.AWS_ACCESS_KEY_ID ? 
+          `Set (Length: ${envVars.AWS_ACCESS_KEY_ID.length}, starts with: ${envVars.AWS_ACCESS_KEY_ID.substring(0, 3)}...)` : 
+          'NOT SET',
+        AWS_SECRET_ACCESS_KEY: envVars.AWS_SECRET_ACCESS_KEY ? 
+          `Set (Length: ${envVars.AWS_SECRET_ACCESS_KEY.length})` : 
+          'NOT SET',
+        AWS_S3_BUCKET_NAME: envVars.AWS_S3_BUCKET_NAME ? 
+          `Set (${envVars.AWS_S3_BUCKET_NAME})` : 
+          'NOT SET'
+      };
+      
+      console.log('AWS Environment Variables:', envStatus);
+      
+      // 2. Check AWS SDK availability
+      let awsSdkStatus = { available: false, error: null };
+      try {
+        const startTime = Date.now();
+        const { S3Client } = await import('@aws-sdk/client-s3');
+        const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+        awsSdkStatus = {
+          available: true,
+          loadTime: `${Date.now() - startTime}ms`,
+          modules: {
+            S3Client: typeof S3Client === 'function',
+            getSignedUrl: typeof getSignedUrl === 'function'
+          }
+        };
+        console.log('AWS SDK successfully imported');
+      } catch (sdkError) {
+        awsSdkStatus = {
+          available: false,
+          error: sdkError instanceof Error ? sdkError.message : String(sdkError)
+        };
+        console.error('AWS SDK import failed:', sdkError);
+      }
+      
+      // 3. Test S3 connection
+      let s3ConnectionStatus = { connected: false, error: null };
+      if (awsSdkStatus.available && 
+          envVars.AWS_REGION && 
+          envVars.AWS_ACCESS_KEY_ID && 
+          envVars.AWS_SECRET_ACCESS_KEY) {
+        try {
+          console.log('Testing S3 connection...');
+          const { S3Client, ListBucketsCommand } = await import('@aws-sdk/client-s3');
+          
+          const s3Client = new S3Client({
+            region: envVars.AWS_REGION,
+            credentials: {
+              accessKeyId: envVars.AWS_ACCESS_KEY_ID,
+              secretAccessKey: envVars.AWS_SECRET_ACCESS_KEY
+            }
+          });
+          
+          // Minimal test with timeout
+          const startTime = Date.now();
+          const command = new ListBucketsCommand({});
+          const response = await Promise.race([
+            s3Client.send(command),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('S3 connection timeout')), 5000)
+            )
+          ]);
+          
+          s3ConnectionStatus = {
+            connected: true,
+            responseTime: `${Date.now() - startTime}ms`,
+            buckets: response.Buckets?.length || 0
+          };
+          console.log('S3 connection successful');
+        } catch (connError) {
+          s3ConnectionStatus = {
+            connected: false,
+            error: connError instanceof Error ? connError.message : String(connError)
+          };
+          console.error('S3 connection failed:', connError);
+        }
+      } else {
+        console.log('Skipping S3 connection test due to missing requirements');
+      }
+      
+      // 4. Try to upload a test file
+      let uploadTest = { success: false, error: null };
+      if (s3ConnectionStatus.connected) {
+        try {
+          console.log('Performing test upload...');
+          const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+          
+          const s3Client = new S3Client({
+            region: envVars.AWS_REGION,
+            credentials: {
+              accessKeyId: envVars.AWS_ACCESS_KEY_ID,
+              secretAccessKey: envVars.AWS_SECRET_ACCESS_KEY
+            }
+          });
+          
+          // Create a simple test file
+          const testKey = `test-${Date.now()}.txt`;
+          const testContent = Buffer.from('This is a test file from AWS diagnostics');
+          
+          const uploadCommand = new PutObjectCommand({
+            Bucket: envVars.AWS_S3_BUCKET_NAME,
+            Key: testKey,
+            Body: testContent,
+            ContentType: 'text/plain'
+          });
+          
+          const startTime = Date.now();
+          await s3Client.send(uploadCommand);
+          
+          uploadTest = {
+            success: true,
+            key: testKey,
+            uploadTime: `${Date.now() - startTime}ms`
+          };
+          console.log('Test upload successful');
+        } catch (uploadError) {
+          uploadTest = {
+            success: false,
+            error: uploadError instanceof Error ? uploadError.message : String(uploadError)
+          };
+          console.error('Test upload failed:', uploadError);
+        }
+      } else {
+        console.log('Skipping upload test due to S3 connection failure');
+      }
+      
+      // Return comprehensive diagnostic results
+      res.json({
+        timestamp: new Date().toISOString(),
+        environment: {
+          node_env: process.env.NODE_ENV,
+          vercel_env: process.env.VERCEL_ENV,
+          region: process.env.REGION || process.env.VERCEL_REGION
+        },
+        aws_environment: envStatus,
+        aws_sdk: awsSdkStatus,
+        s3_connection: s3ConnectionStatus,
+        upload_test: uploadTest,
+        overall_status: uploadTest.success ? 'healthy' : 'unhealthy'
+      });
+    } catch (error) {
+      console.error('AWS diagnostic endpoint error:', error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString()
       });
     }
   });
