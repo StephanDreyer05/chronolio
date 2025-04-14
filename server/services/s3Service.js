@@ -12,6 +12,29 @@ console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME);
 console.log('AWS_ACCESS_KEY_ID exists:', !!process.env.AWS_ACCESS_KEY_ID);
 console.log('AWS_SECRET_ACCESS_KEY exists:', !!process.env.AWS_SECRET_ACCESS_KEY);
 
+// Helper function to sanitize environment variables that might contain template literals
+function getEnvVar(name, defaultValue = '') {
+  const value = process.env[name] || '';
+  // Check if the value is a template literal string (${...})
+  if (value.includes('${') && value.includes('}')) {
+    console.warn(`WARNING: Environment variable ${name} contains template literal syntax: ${value}`);
+    return defaultValue;
+  }
+  return value;
+}
+
+// Get sanitized environment variables
+const REGION = getEnvVar('AWS_REGION', 'us-east-1');
+const BUCKET_NAME = getEnvVar('AWS_S3_BUCKET_NAME', 'chronolio-uploads');
+const ACCESS_KEY_ID = getEnvVar('AWS_ACCESS_KEY_ID');
+const SECRET_ACCESS_KEY = getEnvVar('AWS_SECRET_ACCESS_KEY');
+
+console.log('Sanitized environment variables:');
+console.log('REGION:', REGION);
+console.log('BUCKET_NAME:', BUCKET_NAME);
+console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
+console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
+
 // S3 client instance
 let s3Client = null;
 
@@ -30,19 +53,14 @@ const directS3Service = {
         throw new Error('Key is required');
       }
       
-      // Direct access to environment variables - no template literals
-      const bucket = process.env.AWS_S3_BUCKET_NAME;
-      const region = process.env.AWS_REGION;
-      const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-      const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+      // Use sanitized environment variables instead of raw ones
+      console.log('Environment variables status (sanitized):');
+      console.log('REGION:', REGION);
+      console.log('BUCKET_NAME:', BUCKET_NAME);
+      console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
+      console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
       
-      console.log('Environment variables status:');
-      console.log('AWS_REGION:', region);
-      console.log('AWS_S3_BUCKET_NAME:', bucket);
-      console.log('AWS_ACCESS_KEY_ID exists:', !!accessKeyId);
-      console.log('AWS_SECRET_ACCESS_KEY exists:', !!secretAccessKey);
-      
-      if (!bucket || !region || !accessKeyId || !secretAccessKey) {
+      if (!BUCKET_NAME || !REGION || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY) {
         throw new Error('S3 configuration incomplete: Missing required environment variables');
       }
       
@@ -51,20 +69,20 @@ const directS3Service = {
       const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
       
       // Log the actual values being used for S3 client creation
-      console.log('Creating S3 client with region:', region);
-      console.log('Using bucket:', bucket);
+      console.log('Creating S3 client with region:', REGION);
+      console.log('Using bucket:', BUCKET_NAME);
       
       const s3Client = new S3Client({
-        region,
+        region: REGION,
         credentials: {
-          accessKeyId,
-          secretAccessKey
+          accessKeyId: ACCESS_KEY_ID,
+          secretAccessKey: SECRET_ACCESS_KEY
         }
       });
       
       console.log('Preparing upload command...');
       const command = new PutObjectCommand({
-        Bucket: bucket,
+        Bucket: BUCKET_NAME,
         Key: key,
         Body: fileBuffer,
         ContentType: contentType
@@ -76,7 +94,7 @@ const directS3Service = {
       console.log('Upload successful!');
       
       // Construct the S3 URL properly
-      const url = `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+      const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`;
       console.log('Generated S3 URL:', url);
       
       return { 
@@ -98,20 +116,17 @@ const directS3Service = {
     try {
       console.log('Generating signed URL for key:', key);
       
-      // Direct access to environment variables
-      const bucket = process.env.AWS_S3_BUCKET_NAME;
-      const region = process.env.AWS_REGION;
+      // Use sanitized environment variables
+      console.log('Using sanitized bucket:', BUCKET_NAME);
+      console.log('Using sanitized region:', REGION);
       
-      console.log('Using bucket:', bucket);
-      console.log('Using region:', region);
-      
-      if (!bucket || !region) {
+      if (!BUCKET_NAME || !REGION) {
         throw new Error('S3 configuration incomplete: Missing bucket or region');
       }
       
       // Implementation that returns a properly constructed S3 URL without signing
       // (not a real signed URL, but at least points to the correct S3 location)
-      const baseUrl = `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+      const baseUrl = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`;
       console.log('Generated unsigned S3 URL:', baseUrl);
       
       return { 
@@ -132,38 +147,33 @@ const directS3Service = {
     try {
       console.log('=== S3 CONNECTION DIAGNOSTIC ===');
       
-      // Direct access to environment variables
-      const region = process.env.AWS_REGION;
-      const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-      const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-      const bucketName = process.env.AWS_S3_BUCKET_NAME;
-      
-      console.log('AWS Environment Variables:');
-      console.log('AWS_REGION:', region || 'undefined');
-      console.log('AWS_S3_BUCKET_NAME:', bucketName || 'undefined');
-      console.log('AWS_ACCESS_KEY_ID length:', accessKeyId?.length || 0);
-      console.log('AWS_SECRET_ACCESS_KEY length:', secretAccessKey?.length || 0);
+      // Use sanitized environment variables
+      console.log('Sanitized AWS Environment Variables:');
+      console.log('REGION:', REGION);
+      console.log('BUCKET_NAME:', BUCKET_NAME);
+      console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
+      console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
       
       console.log('Environment summary:', {
-        allDefined: Boolean(region && accessKeyId && secretAccessKey && bucketName),
+        allDefined: Boolean(REGION && ACCESS_KEY_ID && SECRET_ACCESS_KEY && BUCKET_NAME),
         missingValues: [
-          !region ? 'AWS_REGION' : null,
-          !accessKeyId ? 'AWS_ACCESS_KEY_ID' : null,
-          !secretAccessKey ? 'AWS_SECRET_ACCESS_KEY' : null,
-          !bucketName ? 'AWS_S3_BUCKET_NAME' : null
+          !REGION ? 'REGION' : null,
+          !ACCESS_KEY_ID ? 'ACCESS_KEY_ID' : null,
+          !SECRET_ACCESS_KEY ? 'SECRET_ACCESS_KEY' : null,
+          !BUCKET_NAME ? 'BUCKET_NAME' : null
         ].filter(Boolean)
       });
       
-      if (!region || !accessKeyId || !secretAccessKey || !bucketName) {
+      if (!REGION || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY || !BUCKET_NAME) {
         console.error('S3 CONNECTION TEST FAILED: Missing required environment variables');
         return { 
           success: false, 
           message: 'AWS S3 configuration incomplete: Missing required environment variables',
           missingVariables: [
-            !region ? 'AWS_REGION' : null,
-            !accessKeyId ? 'AWS_ACCESS_KEY_ID' : null,
-            !secretAccessKey ? 'AWS_SECRET_ACCESS_KEY' : null,
-            !bucketName ? 'AWS_S3_BUCKET_NAME' : null
+            !REGION ? 'REGION' : null,
+            !ACCESS_KEY_ID ? 'ACCESS_KEY_ID' : null,
+            !SECRET_ACCESS_KEY ? 'SECRET_ACCESS_KEY' : null,
+            !BUCKET_NAME ? 'BUCKET_NAME' : null
           ].filter(Boolean),
           usingDirectFetch: true
         };
@@ -173,7 +183,7 @@ const directS3Service = {
       
       // Try to check AWS connectivity by making a minimal HTTP request to S3
       try {
-        const testUrl = `https://${bucketName}.s3.${region}.amazonaws.com/`;
+        const testUrl = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/`;
         console.log(`Testing basic S3 connectivity to URL: ${testUrl}`);
         
         const response = await fetch(testUrl, {
@@ -197,8 +207,8 @@ const directS3Service = {
           return {
             success: true,
             message: 'AWS S3 service is reachable (credentials not validated)',
-            bucket: bucketName,
-            region,
+            bucket: BUCKET_NAME,
+            region: REGION,
             usingDirectFetch: true,
             connectivityTest: {
               status: response.status,
@@ -210,8 +220,8 @@ const directS3Service = {
           return {
             success: false,
             message: 'Cannot reach AWS S3 service',
-            bucket: bucketName,
-            region,
+            bucket: BUCKET_NAME,
+            region: REGION,
             usingDirectFetch: true,
             connectivityTest: {
               status: response.status,
@@ -225,8 +235,8 @@ const directS3Service = {
           success: false,
           message: 'Error connecting to AWS S3 service',
           error: String(fetchError),
-          bucket: bucketName,
-          region,
+          bucket: BUCKET_NAME,
+          region: REGION,
           usingDirectFetch: true
         };
       }
@@ -266,25 +276,19 @@ const s3Service = {
 export async function initializeS3Service() {
   console.log('=== S3 SERVICE INITIALIZATION - DEBUGGING ===');
   
-  // Access environment variables directly without template literals
-  const region = process.env.AWS_REGION;
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-  const bucketName = process.env.AWS_S3_BUCKET_NAME;
+  // Use sanitized environment variables
+  console.log('Using sanitized environment variables:');
+  console.log('REGION:', REGION);
+  console.log('BUCKET_NAME:', BUCKET_NAME);
+  console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
+  console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
   
-  // Log the raw values to debug any issues with variable access
-  console.log('Raw AWS Environment Variables:');
-  console.log('AWS_REGION:', region);
-  console.log('AWS_S3_BUCKET_NAME:', bucketName);
-  console.log('AWS_ACCESS_KEY_ID exists:', !!accessKeyId);
-  console.log('AWS_SECRET_ACCESS_KEY exists:', !!secretAccessKey);
-  
-  if (!region || !accessKeyId || !secretAccessKey || !bucketName) {
+  if (!REGION || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY || !BUCKET_NAME) {
     const missingVars = [
-      !region ? 'AWS_REGION' : null,
-      !accessKeyId ? 'AWS_ACCESS_KEY_ID' : null,
-      !secretAccessKey ? 'AWS_SECRET_ACCESS_KEY' : null,
-      !bucketName ? 'AWS_S3_BUCKET_NAME' : null
+      !REGION ? 'REGION' : null,
+      !ACCESS_KEY_ID ? 'ACCESS_KEY_ID' : null,
+      !SECRET_ACCESS_KEY ? 'SECRET_ACCESS_KEY' : null,
+      !BUCKET_NAME ? 'BUCKET_NAME' : null
     ].filter(Boolean);
     
     console.warn(`WARNING: Missing required AWS environment variables: ${missingVars.join(', ')}`);
@@ -309,17 +313,17 @@ export async function initializeS3Service() {
     
     // Log the actual values being used to create the client
     console.log('S3 client initialization with:');
-    console.log('  - Region:', region);
-    console.log('  - Bucket:', bucketName);
+    console.log('  - Region:', REGION);
+    console.log('  - Bucket:', BUCKET_NAME);
     
-    // Initialize S3 client with the raw environment variables
+    // Initialize S3 client with sanitized environment variables
     console.log('Creating AWS S3 client...');
     try {
       s3Client = new S3Client({
-        region,
+        region: REGION,
         credentials: {
-          accessKeyId,
-          secretAccessKey
+          accessKeyId: ACCESS_KEY_ID,
+          secretAccessKey: SECRET_ACCESS_KEY
         }
       });
       
@@ -338,7 +342,7 @@ export async function initializeS3Service() {
         
         try {
           const command = new PutObjectCommand({
-            Bucket: bucketName,
+            Bucket: BUCKET_NAME,
             Key: key,
             Body: fileBuffer,
             ContentType: contentType
@@ -347,7 +351,7 @@ export async function initializeS3Service() {
           await s3Client.send(command);
           console.log('File uploaded successfully using AWS SDK');
           
-          const url = `https://${bucketName}.s3.${region}.amazonaws.com/${key}`;
+          const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`;
           return {
             success: true,
             key: key,
@@ -369,7 +373,7 @@ export async function initializeS3Service() {
         
         try {
           const command = new GetObjectCommand({
-            Bucket: bucketName,
+            Bucket: BUCKET_NAME,
             Key: key
           });
           
@@ -462,42 +466,59 @@ export async function uploadFile(fileBuffer, key, contentType) {
   if (s3Service.usingDirectFetch) {
     console.log('Using direct fetch implementation for file upload');
     
-    // Double check environment variables again to ensure they're available
-    const region = process.env.AWS_REGION;
-    const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-    const bucketName = process.env.AWS_S3_BUCKET_NAME;
+    // Use sanitized environment variables
+    console.log('S3 upload with sanitized environment variables:');
+    console.log('REGION:', REGION);
+    console.log('BUCKET_NAME:', BUCKET_NAME);
+    console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
+    console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
     
-    console.log('S3 upload environment variables check:');
-    console.log({
-      region: region || 'NOT SET',
-      accessKeyId: accessKeyId ? '[REDACTED]' : 'NOT SET',
-      secretAccessKey: secretAccessKey ? '[REDACTED]' : 'NOT SET',
-      bucketName: bucketName || 'NOT SET'
-    });
-    
-    if (!region || !accessKeyId || !secretAccessKey || !bucketName) {
+    if (!REGION || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY || !BUCKET_NAME) {
       console.error('Missing AWS environment variables for direct fetch upload');
       throw new Error('Cannot upload file: AWS environment variables not configured');
     }
     
     try {
-      console.log('Direct fetch upload to S3 is not fully implemented');
-      console.log('Using fallback implementation (mock) for testing purposes');
+      console.log('Attempting S3 upload with AWS SDK directly');
       
-      // We'll create a mock successful response for testing
-      const mockKey = key || `fallback-${Date.now()}.file`;
-      const mockUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${mockKey}`;
+      // Import SDK
+      const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
       
-      console.log('MOCK UPLOAD: Created mock S3 URL:', mockUrl);
+      // Create client
+      console.log('Creating S3 client with sanitized credentials');
+      const s3Client = new S3Client({
+        region: REGION,
+        credentials: {
+          accessKeyId: ACCESS_KEY_ID,
+          secretAccessKey: SECRET_ACCESS_KEY
+        }
+      });
+      
+      // Create command
+      console.log('Creating PutObjectCommand');
+      const command = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: fileBuffer,
+        ContentType: contentType
+      });
+      
+      // Execute upload
+      console.log('Executing S3 upload...');
+      await s3Client.send(command);
+      console.log('Upload successful!');
+      
+      // Generate URL
+      const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`;
+      console.log('Generated S3 URL:', url);
       
       return {
         success: true,
-        key: mockKey,
-        url: mockUrl
+        key,
+        url
       };
     } catch (error) {
-      console.error('Error in direct fetch upload:', error);
+      console.error('Error in direct S3 upload:', error);
       throw error;
     }
   } else {
@@ -515,13 +536,11 @@ export async function uploadFile(fileBuffer, key, contentType) {
         throw new Error('AWS SDK module not available');
       }
       
-      const bucket = process.env.AWS_S3_BUCKET_NAME;
-      const region = process.env.AWS_REGION;
-      
-      console.log(`Using bucket: ${bucket}, region: ${region}`);
+      // Use sanitized environment variables
+      console.log(`Using sanitized bucket: ${BUCKET_NAME}, region: ${REGION}`);
       
       const command = new PutObjectCommand({
-        Bucket: bucket,
+        Bucket: BUCKET_NAME,
         Key: key,
         Body: fileBuffer,
         ContentType: contentType
@@ -533,7 +552,7 @@ export async function uploadFile(fileBuffer, key, contentType) {
       return {
         success: true,
         key: key,
-        url: `https://${bucket}.s3.${region}.amazonaws.com/${key}`
+        url: `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`
       };
     } catch (error) {
       console.error('Error uploading file with AWS SDK:', error);
@@ -548,19 +567,19 @@ export default s3Service;
 export async function diagnosticCheck() {
   console.log('=== S3 DIAGNOSTIC CHECK ===');
   
-  // Check environment variables
-  const hasRegion = !!process.env.AWS_REGION;
-  const hasAccessKey = !!process.env.AWS_ACCESS_KEY_ID;
-  const hasSecretKey = !!process.env.AWS_SECRET_ACCESS_KEY;
-  const hasBucket = !!process.env.AWS_S3_BUCKET_NAME;
+  // Check raw environment variables
+  console.log('Raw Environment Variables:');
+  console.log('AWS_REGION:', process.env.AWS_REGION);
+  console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME);
+  console.log('AWS_ACCESS_KEY_ID exists:', !!process.env.AWS_ACCESS_KEY_ID);
+  console.log('AWS_SECRET_ACCESS_KEY exists:', !!process.env.AWS_SECRET_ACCESS_KEY);
   
-  console.log('Environment variable check:');
-  console.log({
-    AWS_REGION: hasRegion ? process.env.AWS_REGION : 'NOT SET',
-    AWS_ACCESS_KEY_ID: hasAccessKey ? '****' + (process.env.AWS_ACCESS_KEY_ID || '').substring(-4) : 'NOT SET',
-    AWS_SECRET_ACCESS_KEY: hasSecretKey ? 'SET (redacted)' : 'NOT SET',
-    AWS_S3_BUCKET_NAME: hasBucket ? process.env.AWS_S3_BUCKET_NAME : 'NOT SET'
-  });
+  // Check sanitized environment variables
+  console.log('Sanitized Environment Variables:');
+  console.log('REGION:', REGION);
+  console.log('BUCKET_NAME:', BUCKET_NAME);
+  console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
+  console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
   
   console.log('Runtime environment:');
   console.log({
@@ -578,12 +597,22 @@ export async function diagnosticCheck() {
   // Return comprehensive result
   return {
     timestamp: new Date().toISOString(),
-    environmentVariables: {
-      hasRegion,
-      hasAccessKey,
-      hasSecretKey,
-      hasBucket,
-      allSet: hasRegion && hasAccessKey && hasSecretKey && hasBucket
+    rawEnvironmentVariables: {
+      hasRegion: !!process.env.AWS_REGION,
+      hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
+      hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY,
+      hasBucket: !!process.env.AWS_S3_BUCKET_NAME,
+      regionValue: process.env.AWS_REGION,
+      bucketValue: process.env.AWS_S3_BUCKET_NAME
+    },
+    sanitizedEnvironmentVariables: {
+      hasRegion: !!REGION,
+      hasAccessKey: !!ACCESS_KEY_ID,
+      hasSecretKey: !!SECRET_ACCESS_KEY,
+      hasBucket: !!BUCKET_NAME,
+      regionValue: REGION,
+      bucketValue: BUCKET_NAME,
+      allSet: !!REGION && !!ACCESS_KEY_ID && !!SECRET_ACCESS_KEY && !!BUCKET_NAME
     },
     connectionTest: testResult,
     serviceStatus: {
