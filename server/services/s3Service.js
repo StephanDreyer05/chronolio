@@ -10,6 +10,7 @@ console.log('Raw AWS environment variables:');
 console.log('AWS_REGION:', process.env.AWS_REGION);
 console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME);
 console.log('AWS_ACCESS_KEY_ID exists:', !!process.env.AWS_ACCESS_KEY_ID);
+console.log('AWS_SECRET_ACCESS_KEY_ID exists:', !!process.env.AWS_SECRET_ACCESS_KEY_ID);
 console.log('AWS_SECRET_ACCESS_KEY exists:', !!process.env.AWS_SECRET_ACCESS_KEY);
 
 // Helper function to sanitize environment variables that might contain template literals
@@ -23,11 +24,14 @@ function getEnvVar(name, defaultValue = '') {
   return value;
 }
 
-// Get sanitized environment variables
+// Get sanitized environment variables using correct environment variable names
 const REGION = getEnvVar('AWS_REGION', 'us-east-1');
 const BUCKET_NAME = getEnvVar('AWS_S3_BUCKET_NAME', 'chronolio-uploads');
 const ACCESS_KEY_ID = getEnvVar('AWS_ACCESS_KEY_ID');
-const SECRET_ACCESS_KEY = getEnvVar('AWS_SECRET_ACCESS_KEY');
+// Use AWS_SECRET_ACCESS_KEY_ID instead of AWS_SECRET_ACCESS_KEY
+const SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY_ID 
+  ? getEnvVar('AWS_SECRET_ACCESS_KEY_ID') 
+  : getEnvVar('AWS_SECRET_ACCESS_KEY'); // Fallback for backward compatibility
 
 console.log('Sanitized environment variables:');
 console.log('REGION:', REGION);
@@ -37,6 +41,18 @@ console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
 
 // S3 client instance
 let s3Client = null;
+
+// Helper function to normalize S3 keys (prevent double slashes)
+function normalizeS3Key(key) {
+  if (!key) return '';
+  
+  // Remove leading slash if present
+  if (key.startsWith('/')) {
+    key = key.substring(1);
+  }
+  
+  return key;
+}
 
 // Direct fallback implementation using fetch API (no AWS SDK required)
 const directS3Service = {
@@ -52,6 +68,10 @@ const directS3Service = {
       if (!key) {
         throw new Error('Key is required');
       }
+      
+      // Normalize the key to prevent double slashes
+      const normalizedKey = normalizeS3Key(key);
+      console.log('Normalized key:', normalizedKey);
       
       // Use sanitized environment variables instead of raw ones
       console.log('Environment variables status (sanitized):');
@@ -83,7 +103,7 @@ const directS3Service = {
       console.log('Preparing upload command...');
       const command = new PutObjectCommand({
         Bucket: BUCKET_NAME,
-        Key: key,
+        Key: normalizedKey,
         Body: fileBuffer,
         ContentType: contentType
       });
@@ -93,13 +113,13 @@ const directS3Service = {
       
       console.log('Upload successful!');
       
-      // Construct the S3 URL properly
-      const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`;
+      // Construct the S3 URL properly with normalized key
+      const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${normalizedKey}`;
       console.log('Generated S3 URL:', url);
       
       return { 
         success: true, 
-        key,
+        key: normalizedKey,
         url
       };
     } catch (error) {
@@ -116,6 +136,10 @@ const directS3Service = {
     try {
       console.log('Generating signed URL for key:', key);
       
+      // Normalize the key to prevent double slashes
+      const normalizedKey = normalizeS3Key(key);
+      console.log('Normalized key:', normalizedKey);
+      
       // Use sanitized environment variables
       console.log('Using sanitized bucket:', BUCKET_NAME);
       console.log('Using sanitized region:', REGION);
@@ -126,7 +150,7 @@ const directS3Service = {
       
       // Implementation that returns a properly constructed S3 URL without signing
       // (not a real signed URL, but at least points to the correct S3 location)
-      const baseUrl = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`;
+      const baseUrl = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${normalizedKey}`;
       console.log('Generated unsigned S3 URL:', baseUrl);
       
       return { 
@@ -163,6 +187,14 @@ const directS3Service = {
           !BUCKET_NAME ? 'BUCKET_NAME' : null
         ].filter(Boolean)
       });
+      
+      // Direct check of environment variables for additional debugging
+      console.log('Direct Environment Variable Check:');
+      console.log('AWS_REGION exists:', !!process.env.AWS_REGION);
+      console.log('AWS_S3_BUCKET_NAME exists:', !!process.env.AWS_S3_BUCKET_NAME);
+      console.log('AWS_ACCESS_KEY_ID exists:', !!process.env.AWS_ACCESS_KEY_ID);
+      console.log('AWS_SECRET_ACCESS_KEY_ID exists:', !!process.env.AWS_SECRET_ACCESS_KEY_ID);
+      console.log('AWS_SECRET_ACCESS_KEY exists:', !!process.env.AWS_SECRET_ACCESS_KEY);
       
       if (!REGION || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY || !BUCKET_NAME) {
         console.error('S3 CONNECTION TEST FAILED: Missing required environment variables');
@@ -567,11 +599,12 @@ export default s3Service;
 export async function diagnosticCheck() {
   console.log('=== S3 DIAGNOSTIC CHECK ===');
   
-  // Check raw environment variables
+  // Check raw environment variables - with correct names
   console.log('Raw Environment Variables:');
   console.log('AWS_REGION:', process.env.AWS_REGION);
   console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME);
   console.log('AWS_ACCESS_KEY_ID exists:', !!process.env.AWS_ACCESS_KEY_ID);
+  console.log('AWS_SECRET_ACCESS_KEY_ID exists:', !!process.env.AWS_SECRET_ACCESS_KEY_ID);
   console.log('AWS_SECRET_ACCESS_KEY exists:', !!process.env.AWS_SECRET_ACCESS_KEY);
   
   // Check sanitized environment variables
@@ -594,13 +627,14 @@ export async function diagnosticCheck() {
   // Execute the regular testConnection function
   const testResult = await directS3Service.testConnection();
   
-  // Return comprehensive result
+  // Return comprehensive result with checks for both variable names
   return {
     timestamp: new Date().toISOString(),
     rawEnvironmentVariables: {
       hasRegion: !!process.env.AWS_REGION,
       hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
-      hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY,
+      hasSecretKeyID: !!process.env.AWS_SECRET_ACCESS_KEY_ID, // Check correct name
+      hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY,  // Check old name
       hasBucket: !!process.env.AWS_S3_BUCKET_NAME,
       regionValue: process.env.AWS_REGION,
       bucketValue: process.env.AWS_S3_BUCKET_NAME
