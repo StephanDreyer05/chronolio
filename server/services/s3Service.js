@@ -4,28 +4,47 @@
  * Using dynamic imports to prevent build-time errors
  */
 
-// Add debug logging at the top of the file to see exactly what we're working with
-console.log('=== S3SERVICE ENVIRONMENT DEBUG ===');
+// ===== START COMPREHENSIVE DEBUG LOGGING =====
+console.log('=== S3SERVICE TOP LEVEL DEBUG ===');
+console.log('Node.js version:', process.version);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('VERCEL_ENV:', process.env.VERCEL_ENV);
 
-// Log the direct environment variables (non-sanitized, just the raw values)
-console.log('Direct environment variables:');
+// Log all environment variables to see the exact runtime state
+console.log('--- All process.env variables --- START ---');
+try {
+  // Attempt to stringify, handle potential circular structures (unlikely for env)
+  console.log(JSON.stringify(process.env, null, 2));
+} catch (e) {
+  console.error('Could not stringify process.env:', e);
+  // Fallback: log keys and potentially problematic values individually
+  Object.keys(process.env).forEach(key => {
+    try {
+      console.log(`${key}: ${process.env[key]}`);
+    } catch { 
+      console.log(`${key}: [Error logging value]`);
+    }
+  });
+}
+console.log('--- All process.env variables --- END ---');
+
+// Log the specific AWS variables we expect
+console.log('--- Specific AWS variable check --- START ---');
 console.log('process.env.AWS_REGION:', process.env.AWS_REGION);
 console.log('process.env.AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME);
-console.log('process.env.AWS_ACCESS_KEY_ID:', process.env.AWS_ACCESS_KEY_ID ? 'SET (redacted)' : 'NOT SET');
-console.log('process.env.AWS_SECRET_ACCESS_KEY_ID:', process.env.AWS_SECRET_ACCESS_KEY_ID ? 'SET (redacted)' : 'NOT SET');
+console.log('process.env.AWS_ACCESS_KEY_ID:', process.env.AWS_ACCESS_KEY_ID ? 'Exists' : 'MISSING');
+console.log('process.env.AWS_SECRET_ACCESS_KEY_ID:', process.env.AWS_SECRET_ACCESS_KEY_ID ? 'Exists' : 'MISSING');
+console.log('--- Specific AWS variable check --- END ---');
+// ===== END COMPREHENSIVE DEBUG LOGGING =====
 
-// Set hardcoded values for testing when environment variables are not available
-const DEFAULT_REGION = 'eu-north-1';
-const DEFAULT_BUCKET = 'chronolio.timeline.images';
-
-// Direct access to environment variables - no sanitization
-const REGION = process.env.AWS_REGION || DEFAULT_REGION;
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || DEFAULT_BUCKET;
-const ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || '';
-const SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY_ID || ''; // Using the correct variable name
+// Direct access to environment variables - NO FALLBACKS, relies on Vercel env config
+const REGION = process.env.AWS_REGION;
+const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
+const ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
+const SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY_ID; // Using the correct variable name
 
 // Log the values being used (to confirm they are actually accessible)
-console.log('Values being used:');
+console.log('Values being used by S3 service (MUST NOT contain ${...}):');
 console.log('REGION:', REGION);
 console.log('BUCKET_NAME:', BUCKET_NAME);
 console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
@@ -301,8 +320,18 @@ const s3Service = {
 };
 
 // Initialize the S3 service
+let isS3Initialized = false;
+let s3InitializationError = null;
+
 export async function initializeS3Service() {
-  console.log('=== S3 SERVICE INITIALIZATION - DEBUGGING ===');
+  // Prevent multiple initializations
+  if (isS3Initialized || s3InitializationError) {
+    console.log('S3 Service initialization already attempted. Status:', 
+      isS3Initialized ? 'Success' : `Failed (${s3InitializationError})`);
+    return isS3Initialized;
+  }
+  
+  console.log('=== S3 SERVICE INITIALIZATION - START ===');
   
   // Direct log of the environment variables being used
   console.log('Environment variables for S3 initialization:');
@@ -311,10 +340,12 @@ export async function initializeS3Service() {
   console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
   console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
   
-  // Check if all required variables are available
-  if (!ACCESS_KEY_ID || !SECRET_ACCESS_KEY) {
-    console.warn(`WARNING: Missing required AWS credentials. Cannot initialize S3 client.`);
-    console.log('Falling back to direct fetch implementation');
+  // Check if all required variables are available and CORRECTLY FORMATTED
+  if (!REGION || !BUCKET_NAME || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY || 
+      REGION.includes('${') || BUCKET_NAME.includes('${')) {
+    s3InitializationError = `Invalid or missing AWS configuration. REGION: ${REGION}, BUCKET_NAME: ${BUCKET_NAME}`;
+    console.error(`ERROR: ${s3InitializationError}. Check Vercel Environment Variables.`);
+    console.log('Cannot initialize S3 client due to configuration issues.');
     return false;
   }
   
@@ -426,11 +457,14 @@ export async function initializeS3Service() {
         
         // Mark as using AWS SDK (not direct fetch)
         s3Service.usingDirectFetch = false;
+        isS3Initialized = true; // Mark initialization as successful
+        s3InitializationError = null; // Clear any previous error
         
-        console.log('Successfully initialized AWS S3 service with AWS SDK');
+        console.log('=== S3 SERVICE INITIALIZATION - SUCCESS ===');
         return true;
       } catch (sendError) {
-        console.error('Error testing S3 connection with credentials:', sendError);
+        s3InitializationError = `Error testing S3 connection: ${sendError.message}`;
+        console.error(s3InitializationError);
         console.log('AWS SDK error details:', {
           code: sendError.code,
           message: sendError.message,
@@ -440,13 +474,13 @@ export async function initializeS3Service() {
         return false;
       }
     } catch (clientError) {
-      console.error('Failed to initialize S3 client:', clientError);
-      console.log('Falling back to direct fetch implementation');
+      s3InitializationError = `Failed to initialize S3 client: ${clientError.message}`;
+      console.error(s3InitializationError);
       return false;
     }
   } catch (importError) {
-    console.error('Failed to import AWS SDK modules:', importError);
-    console.log('Falling back to direct fetch implementation');
+    s3InitializationError = `Failed to import AWS SDK modules: ${importError.message}`;
+    console.error(s3InitializationError);
     return false;
   }
 }
