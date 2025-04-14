@@ -3341,14 +3341,21 @@ export function registerRoutes(app: Express): Server {
       const key = `timelines/${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
       
       // Import the S3 service
+      console.log('Importing S3 service for upload...');
       const s3Service = (await import('./services/s3Service.js')).default;
       
+      // Output the methods available in s3Service
+      console.log('S3 service methods:', Object.keys(s3Service).join(', '));
+      
       // Upload the file to S3
+      console.log('Initiating file upload to S3 with key:', key);
       const uploadResult = await s3Service.uploadFile(
         file.buffer,
         key,
         file.mimetype
       );
+      
+      console.log('Upload result:', JSON.stringify(uploadResult));
       
       if (!uploadResult.success) {
         console.error('S3 upload failed:', uploadResult.error);
@@ -3366,8 +3373,8 @@ export function registerRoutes(app: Express): Server {
       // Return success with the S3 key
       res.json({
         success: true,
-        key: key,
-        isLocal: false
+        key: uploadResult.key || key,
+        isLocal: uploadResult.isLocal || false
       });
     } catch (error) {
       console.error('Error uploading to S3:', error);
