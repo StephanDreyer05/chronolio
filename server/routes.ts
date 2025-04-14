@@ -3348,7 +3348,7 @@ export function registerRoutes(app: Express): Server {
       
       // Output the methods available in s3Service
       console.log('S3 service methods:', Object.keys(s3Service).join(', '));
-      console.log('S3 service implementation type:', s3Service.usingDirectFetch ? 'Direct Fetch' : 'AWS SDK');
+      console.log('Using implementation:', s3Service.usingDirectFetch ? 'Direct Fetch' : 'AWS SDK');
 
       // Upload the file
       console.log('Starting file upload...');
