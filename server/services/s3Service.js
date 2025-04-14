@@ -4,6 +4,14 @@
  * Using dynamic imports to prevent build-time errors
  */
 
+// Add debug logging at the top of the file to see exactly what we're working with
+console.log('=== S3SERVICE ENVIRONMENT DEBUG ===');
+console.log('Raw AWS environment variables:');
+console.log('AWS_REGION:', process.env.AWS_REGION);
+console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME);
+console.log('AWS_ACCESS_KEY_ID exists:', !!process.env.AWS_ACCESS_KEY_ID);
+console.log('AWS_SECRET_ACCESS_KEY exists:', !!process.env.AWS_SECRET_ACCESS_KEY);
+
 // S3 client instance
 let s3Client = null;
 
@@ -22,26 +30,55 @@ const directS3Service = {
         throw new Error('Key is required');
       }
       
+      // CRITICAL FIX: Directly use the variables, don't interpolate them
       const bucket = process.env.AWS_S3_BUCKET_NAME;
       const region = process.env.AWS_REGION;
       const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
       const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
       
       console.log('Environment variables status:');
-      console.log({
-        region: region ? 'Set' : 'NOT SET',
-        accessKeyId: accessKeyId ? 'Set' : 'NOT SET',
-        secretAccessKey: secretAccessKey ? 'Set' : 'NOT SET',
-        bucket: bucket ? 'Set' : 'NOT SET'
-      });
+      console.log('AWS_REGION:', region || 'NOT SET');
+      console.log('AWS_S3_BUCKET_NAME:', bucket || 'NOT SET');
+      console.log('AWS_ACCESS_KEY_ID exists:', !!accessKeyId);
+      console.log('AWS_SECRET_ACCESS_KEY exists:', !!secretAccessKey);
       
       if (!bucket || !region || !accessKeyId || !secretAccessKey) {
         throw new Error('S3 configuration incomplete: Missing required environment variables');
       }
       
-      // Implementation using fetch directly to S3
-      console.log('Direct S3 upload not implemented - refusing to use local storage');
-      throw new Error('Direct S3 implementation not available and local storage is not allowed');
+      // Proceed with the actual S3 upload using AWS SDK
+      console.log('Dynamically importing AWS SDK...');
+      const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+      
+      console.log('Creating S3 client with:', { region, bucket });
+      const s3Client = new S3Client({
+        region,
+        credentials: {
+          accessKeyId,
+          secretAccessKey
+        }
+      });
+      
+      console.log('Preparing upload command...');
+      const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: fileBuffer,
+        ContentType: contentType
+      });
+      
+      console.log('Executing upload to S3...');
+      await s3Client.send(command);
+      
+      console.log('Upload successful!');
+      
+      // Return successful result with the S3 URL
+      const url = `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+      return { 
+        success: true, 
+        key,
+        url
+      };
     } catch (error) {
       console.error('ERROR in direct S3 service uploadFile:', error);
       return { 
@@ -238,35 +275,17 @@ const s3Service = {
 export async function initializeS3Service() {
   console.log('=== S3 SERVICE INITIALIZATION - DEBUGGING ===');
   
-  // Validate environment variables with detailed logging
+  // Validate environment variables with detailed logging - WITHOUT string interpolation
   const region = process.env.AWS_REGION;
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
   const bucketName = process.env.AWS_S3_BUCKET_NAME;
   
-  console.log('Checking AWS Environment Variables:');
-  console.log({
-    AWS_REGION: region ? `Set (${region})` : 'NOT SET',
-    AWS_ACCESS_KEY_ID: accessKeyId ? `Set (length: ${accessKeyId.length}, starts with: ${accessKeyId.substring(0, 4)}...)` : 'NOT SET',
-    AWS_SECRET_ACCESS_KEY: secretAccessKey ? `Set (length: ${secretAccessKey.length})` : 'NOT SET',
-    AWS_S3_BUCKET_NAME: bucketName ? `Set (${bucketName})` : 'NOT SET'
-  });
-  
-  // ADDED: Debug raw values (without interpolation, will show exact values for debugging)
-  console.log('Raw environment variable values:');
-  console.log('AWS_REGION:', process.env.AWS_REGION);
-  console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME);
-  console.log('AWS_ACCESS_KEY_ID:', process.env.AWS_ACCESS_KEY_ID ? 'Present (not showing for security)' : 'NOT SET');
-  console.log('AWS_SECRET_ACCESS_KEY:', process.env.AWS_SECRET_ACCESS_KEY ? 'Present (not showing for security)' : 'NOT SET');
-
-  // More secure version that redacts sensitive values
-  console.log('Secure environment variable check:');
-  console.log({
-    AWS_REGION: process.env.AWS_REGION || 'NOT SET',
-    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? '[REDACTED]' : 'NOT SET',
-    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ? '[REDACTED]' : 'NOT SET',
-    AWS_S3_BUCKET_NAME: process.env.AWS_S3_BUCKET_NAME || 'NOT SET'
-  });
+  console.log('Checking AWS Environment Variables (raw values):');
+  console.log('AWS_REGION:', region || 'NOT SET');
+  console.log('AWS_S3_BUCKET_NAME:', bucketName || 'NOT SET');
+  console.log('AWS_ACCESS_KEY_ID exists:', !!accessKeyId);
+  console.log('AWS_SECRET_ACCESS_KEY exists:', !!secretAccessKey);
   
   if (!region || !accessKeyId || !secretAccessKey || !bucketName) {
     const missingVars = [
@@ -284,34 +303,23 @@ export async function initializeS3Service() {
   // Try to dynamically import AWS SDK modules
   console.log('Attempting to import AWS SDK modules...');
   try {
-    // Import the necessary AWS SDK modules
-    console.log('Importing S3Client...');
-    const S3Client = await dynamicImport('S3Client');
+    // Import all AWS SDK modules at once to avoid multiple imports
+    console.log('Importing AWS SDK modules...');
+    const { 
+      S3Client, 
+      ListBucketsCommand,
+      PutObjectCommand,
+      GetObjectCommand 
+    } = await import('@aws-sdk/client-s3');
     
-    console.log('Importing ListBucketsCommand...');
-    const ListBucketsCommand = await dynamicImport('ListBucketsCommand');
+    console.log('Importing S3 request presigner...');
+    const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
     
-    console.log('Importing PutObjectCommand...');
-    const PutObjectCommand = await dynamicImport('PutObjectCommand');
-    
-    console.log('Importing GetObjectCommand...');
-    const GetObjectCommand = await dynamicImport('GetObjectCommand');
-    
-    console.log('Importing getSignedUrl...');
-    const getSignedUrl = await dynamicImport('getSignedUrl');
-    
-    // Check if all modules were successfully imported
-    if (!S3Client || !ListBucketsCommand || !PutObjectCommand || !GetObjectCommand || !getSignedUrl) {
-      console.error('Failed to import one or more AWS SDK modules');
-      console.log('Falling back to direct fetch implementation');
-      return false;
-    }
-    
-    // Initialize S3 client
+    // Initialize S3 client with the raw environment variables
     console.log('Creating AWS S3 client...');
     try {
       s3Client = new S3Client({
-        region,
+        region, // Use directly without string interpolation
         credentials: {
           accessKeyId,
           secretAccessKey
@@ -324,18 +332,71 @@ export async function initializeS3Service() {
       const response = await s3Client.send(command);
       console.log(`Successfully connected to AWS S3. Found ${response.Buckets?.length || 0} buckets.`);
       
-      // Set up the AWS SDK implementation
+      // Override the direct fetch implementation with AWS SDK implementation
       console.log('Setting up AWS SDK S3 service methods...');
+      
+      // Override the uploadFile method
       s3Service.uploadFile = async (fileBuffer, key, contentType) => {
-        // AWS SDK implementation
+        console.log(`Uploading file to S3 with key: ${key} using AWS SDK`);
+        
+        try {
+          const command = new PutObjectCommand({
+            Bucket: bucketName,
+            Key: key,
+            Body: fileBuffer,
+            ContentType: contentType
+          });
+          
+          await s3Client.send(command);
+          console.log('File uploaded successfully using AWS SDK');
+          
+          const url = `https://${bucketName}.s3.${region}.amazonaws.com/${key}`;
+          return {
+            success: true,
+            key: key,
+            url: url
+          };
+        } catch (error) {
+          console.error('Error uploading file with AWS SDK:', error);
+          return {
+            success: false,
+            key: key,
+            error: String(error)
+          };
+        }
       };
       
+      // Override the generateSignedUrl method
       s3Service.generateSignedUrl = async (key, expirationSeconds = 3600) => {
-        // AWS SDK implementation
+        console.log(`Generating signed URL for key: ${key} using AWS SDK`);
+        
+        try {
+          const command = new GetObjectCommand({
+            Bucket: bucketName,
+            Key: key
+          });
+          
+          const url = await getSignedUrl(s3Client, command, { expiresIn: expirationSeconds });
+          console.log('Successfully generated signed URL');
+          
+          return {
+            success: true,
+            url: url
+          };
+        } catch (error) {
+          console.error('Error generating signed URL with AWS SDK:', error);
+          return {
+            success: false,
+            url: null,
+            error: String(error)
+          };
+        }
       };
       
+      // Mark as using AWS SDK (not direct fetch)
       s3Service.usingDirectFetch = false;
       
+      console.log('Successfully initialized AWS S3 service with AWS SDK');
       return true;
     } catch (clientError) {
       console.error('Failed to initialize S3 client:', clientError);
@@ -484,4 +545,52 @@ export async function uploadFile(fileBuffer, key, contentType) {
   }
 }
 
-export default s3Service; 
+export default s3Service;
+
+// Add a diagnostic utility function
+export async function diagnosticCheck() {
+  console.log('=== S3 DIAGNOSTIC CHECK ===');
+  
+  // Check environment variables
+  const hasRegion = !!process.env.AWS_REGION;
+  const hasAccessKey = !!process.env.AWS_ACCESS_KEY_ID;
+  const hasSecretKey = !!process.env.AWS_SECRET_ACCESS_KEY;
+  const hasBucket = !!process.env.AWS_S3_BUCKET_NAME;
+  
+  console.log('Environment variable check:');
+  console.log({
+    AWS_REGION: hasRegion ? process.env.AWS_REGION : 'NOT SET',
+    AWS_ACCESS_KEY_ID: hasAccessKey ? '****' + (process.env.AWS_ACCESS_KEY_ID || '').substring(-4) : 'NOT SET',
+    AWS_SECRET_ACCESS_KEY: hasSecretKey ? 'SET (redacted)' : 'NOT SET',
+    AWS_S3_BUCKET_NAME: hasBucket ? process.env.AWS_S3_BUCKET_NAME : 'NOT SET'
+  });
+  
+  console.log('Runtime environment:');
+  console.log({
+    nodeEnv: process.env.NODE_ENV,
+    vercelEnv: process.env.VERCEL_ENV,
+    isProduction: process.env.NODE_ENV === 'production',
+    platform: process.platform,
+    architecture: process.arch,
+    nodeVersion: process.version
+  });
+  
+  // Execute the regular testConnection function
+  const testResult = await directS3Service.testConnection();
+  
+  // Return comprehensive result
+  return {
+    timestamp: new Date().toISOString(),
+    environmentVariables: {
+      hasRegion,
+      hasAccessKey,
+      hasSecretKey,
+      hasBucket,
+      allSet: hasRegion && hasAccessKey && hasSecretKey && hasBucket
+    },
+    connectionTest: testResult,
+    serviceStatus: {
+      usingDirectFetch: s3Service.usingDirectFetch
+    }
+  };
+} 

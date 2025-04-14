@@ -3343,19 +3343,34 @@ export function registerRoutes(app: Express): Server {
         timelineId,
         fileName: file.originalname,
         fileSize: file.size,
-        fileType: file.mimetype,
+        fileMimeType: file.mimetype,
+        sanitizedFileName,
         s3Key: key
       });
       
       // Import S3 service
       const s3Service = (await import('./services/s3Service.js')).default;
       
-      // Directly upload to S3 - will throw error if it fails
+      // Directly upload to S3
       const uploadResult = await s3Service.uploadFile(file.buffer, key, file.mimetype);
       
-      console.log('Upload successful:', uploadResult);
+      console.log('Upload result:', {
+        success: uploadResult.success,
+        key: uploadResult.key,
+        error: uploadResult.error || null
+      });
       
-      // Return success response
+      // Only return success if the upload was actually successful
+      if (!uploadResult.success) {
+        console.error('S3 UPLOAD FAILED:', uploadResult.error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload file to S3',
+          error: uploadResult.error
+        });
+      }
+      
+      // Return success response with the appropriate data
       return res.status(200).json({
         success: true,
         key: uploadResult.key,
@@ -3876,6 +3891,41 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({
         error: error instanceof Error ? error.message : String(error),
         timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // Add S3 diagnostic endpoint for troubleshooting
+  app.get('/api/s3/diagnostic', async (req, res) => {
+    try {
+      console.log('Running S3 diagnostic check...');
+      
+      // Import the S3 service
+      const s3Module = await import('./services/s3Service.js');
+      const s3Service = s3Module.default;
+      
+      // Run the diagnostic check
+      const diagnosticResult = await s3Module.diagnosticCheck();
+      
+      // Return the comprehensive diagnostic information
+      return res.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        diagnosticResult,
+        // Add some additional environment information that might be useful
+        environment: {
+          nodeEnv: process.env.NODE_ENV,
+          vercelEnv: process.env.VERCEL_ENV,
+          region: process.env.VERCEL_REGION,
+          deploymentUrl: process.env.VERCEL_URL
+        }
+      });
+    } catch (error) {
+      console.error('Error in S3 diagnostic endpoint:', error);
+      return res.status(500).json({
+        success: false,
+        error: String(error),
+        message: 'Failed to run S3 diagnostic check'
       });
     }
   });
