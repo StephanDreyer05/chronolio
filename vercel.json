@@ -1,8 +1,8 @@
 {
   "version": 2,
   "framework": null,
-  "buildCommand": "chmod +x ./vercel-build.sh && ./vercel-build.sh",
-  "installCommand": "npm ci",
+  "buildCommand": "npm install --no-save @aws-sdk/client-s3 @aws-sdk/s3-request-presigner && node vercel-custom-build.js",
+  "installCommand": "echo 'Using custom buildCommand instead'",
   "outputDirectory": "public",
   "devCommand": "npm run dev",
   "headers": [
@@ -16,5 +16,11 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/(.*)", "destination": "/" }
-  ]
+  ],
+  "env": {
+    "AWS_REGION": "${AWS_REGION}",
+    "AWS_ACCESS_KEY_ID": "${AWS_ACCESS_KEY_ID}",
+    "AWS_SECRET_ACCESS_KEY": "${AWS_SECRET_ACCESS_KEY}",
+    "AWS_S3_BUCKET_NAME": "${AWS_S3_BUCKET_NAME}"
+  }
 }

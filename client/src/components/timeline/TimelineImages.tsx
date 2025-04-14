@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { useDrag, useDrop } from 'react-dnd';
 import { fetchWithAuth } from "../../lib/api";
+import { uploadToS3, deleteFromS3, extractS3KeyFromUrl } from '../../lib/s3Service';
+import { useS3Image } from '../../hooks/useS3Image';
 
 interface TimelineImage {
   id: number;
@@ -51,6 +53,9 @@ const DraggableImage = ({ image, index, moveImage, onEdit, onDelete, onPreview }
     },
   });
 
+  // Use our S3 image hook to get the signed URL
+  const { url: signedImageUrl, loading: imageLoading } = useS3Image(image.imageUrl);
+
   return (
     <div
       ref={(node) => drag(drop(node))}
@@ -59,11 +64,17 @@ const DraggableImage = ({ image, index, moveImage, onEdit, onDelete, onPreview }
       <div className="absolute top-2 left-2 cursor-move z-10 text-white">
         <GripVertical className="w-4 h-4" />
       </div>
-      <img
-        src={image.imageUrl}
-        alt={image.caption || 'Timeline image'}
-        className="w-full aspect-square object-cover rounded-lg"
-      />
+      {imageLoading ? (
+        <div className="w-full aspect-square flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-lg">
+          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        </div>
+      ) : (
+        <img
+          src={signedImageUrl || ''}
+          alt={image.caption || 'Timeline image'}
+          className="w-full aspect-square object-cover rounded-lg"
+        />
+      )}
       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
         <div className="flex gap-2">
           <Button
@@ -221,10 +232,34 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
 
   const deleteMutation = useMutation({
     mutationFn: async (imageId: number) => {
+      // First, get the image to extract the S3 key
+      const imageToDelete = images.find(img => img.id === imageId);
+      if (!imageToDelete) {
+        throw new Error('Image not found');
+      }
+
+      // Extract S3 key from the URL
+      const s3Key = extractS3KeyFromUrl(imageToDelete.imageUrl);
+      
+      // Delete from database first
       const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/${imageId}`, {
         method: 'DELETE',
       });
-      if (!response.ok) throw new Error('Failed to delete image');
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete image from database');
+      }
+      
+      // If it's an S3 key, also delete from S3
+      if (s3Key && !imageToDelete.imageUrl.startsWith('memory-storage-placeholder-')) {
+        try {
+          await deleteFromS3(s3Key);
+        } catch (s3Error) {
+          // Log the error but don't fail the whole operation - the database record is already deleted
+          console.error('Failed to delete image from S3:', s3Error);
+        }
+      }
+      
       return response.json();
     },
     onSuccess: () => {
@@ -234,10 +269,10 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
         description: "Image deleted successfully",
       });
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "Error",
-        description: "Failed to delete image",
+        description: error instanceof Error ? error.message : "Failed to delete image",
         variant: "destructive",
       });
     },
@@ -285,28 +320,97 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
     if (selectedFiles.length === 0) return;
 
     setUploading(true);
-    const formData = new FormData();
-    
-    selectedFiles.forEach((file, index) => {
-      formData.append(`images`, file);
-    });
-
     try {
-      const response = await fetchWithAuth(`/api/timelines/${timelineId}/images`, {
-        method: 'POST',
-        body: formData,
+      // Try to upload files to S3 first
+      const uploadPromises = selectedFiles.map(async (file) => {
+        try {
+          // Upload to S3 and get the key
+          const s3Key = await uploadToS3(file, timelineId);
+          return {
+            file,
+            s3Key,
+            success: true
+          };
+        } catch (err) {
+          console.error(`Failed to upload ${file.name} to S3:`, err);
+          return {
+            file,
+            s3Key: null,
+            success: false
+          };
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to upload images');
+      const results = await Promise.all(uploadPromises);
+      const successfulUploads = results.filter(r => r.success);
+      
+      if (successfulUploads.length === 0) {
+        throw new Error('All uploads to S3 failed');
+      }
+
+      // Check if uploaded keys are fallback keys (when S3 is not available)
+      const hasFallbackKeys = successfulUploads.some(upload => 
+        upload.s3Key?.startsWith('fallback-s3-key-')
+      );
+
+      if (hasFallbackKeys) {
+        // If using fallback keys, fall back to the standard file upload endpoint
+        const formData = new FormData();
+        selectedFiles.forEach(file => {
+          formData.append('images', file);
+        });
+
+        const response = await fetchWithAuth(`/api/timelines/${timelineId}/images`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to upload images to server');
+        }
+      } else {
+        // For now, use the standard endpoint even when we have real S3 keys
+        // We'll need to create a server endpoint to handle S3 keys in the future
+        const formData = new FormData();
+        
+        // Add the S3 keys as metadata (server will ignore this for now)
+        formData.append('s3Data', JSON.stringify({
+          keys: successfulUploads.map(r => r.s3Key),
+          filenames: successfulUploads.map(r => r.file.name)
+        }));
+        
+        // Also include the actual files as fallback
+        selectedFiles.forEach(file => {
+          formData.append('images', file);
+        });
+
+        const response = await fetchWithAuth(`/api/timelines/${timelineId}/images`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to upload images to server');
+        }
       }
 
       // Reset selected files
       setSelectedFiles([]);
+      
       // Refresh the images list
       queryClient.invalidateQueries({ queryKey: [`/api/timelines/${timelineId}/images`] });
+      
+      toast({
+        title: "Success",
+        description: `Successfully uploaded ${successfulUploads.length} images`,
+      });
     } catch (error) {
       console.error('Upload error:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to upload images",
+        variant: "destructive",
+      });
     } finally {
       setUploading(false);
     }
@@ -344,31 +448,19 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {images && images.length > 0 ? (
-          images.map((image) => (
-            <div key={image.id} className="relative group border dark:border-gray-700 rounded-md overflow-hidden">
-              <img 
-                src={image.imageUrl} 
-                alt={image.caption || 'Timeline image'} 
-                className="w-full h-40 object-cover"
-              />
-              {image.caption && (
-                <div className="p-2 text-sm text-gray-700 dark:text-gray-300 truncate">
-                  {image.caption}
-                </div>
-              )}
-              <Button
-                className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                size="sm"
-                onClick={() => deleteMutation.mutate(image.id)}
-                disabled={deleteMutation.isPending}
-              >
-                {deleteMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+          images.map((image, index) => (
+            <DraggableImage
+              key={image.id}
+              image={image}
+              index={index}
+              moveImage={moveImage}
+              onEdit={() => {
+                setEditingCaption(image.id);
+                setCaption(image.caption || '');
+              }}
+              onDelete={() => deleteMutation.mutate(image.id)}
+              onPreview={() => setPreviewImage(image)}
+            />
           ))
         ) : (
           <div className="col-span-full text-center p-6 border border-dashed rounded-md text-gray-500 dark:text-gray-400">
@@ -416,6 +508,105 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
           </div>
         </div>
       </div>
+      
+      {/* Preview Image Dialog */}
+      {previewImage && (
+        <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
+          <DialogContent className="sm:max-w-lg">
+            <div className="flex flex-col gap-4">
+              <S3Image imageUrl={previewImage.imageUrl} caption={previewImage.caption} />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+      
+      {/* Caption Editing Dialog */}
+      {editingCaption !== null && (
+        <Dialog open={editingCaption !== null} onOpenChange={() => setEditingCaption(null)}>
+          <DialogContent className="sm:max-w-md">
+            <div className="space-y-4">
+              <div className="font-medium">Edit Image Caption</div>
+              <Input
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                placeholder="Enter a caption for this image"
+                className="w-full"
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditingCaption(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (editingCaption !== null) {
+                      updateCaptionMutation.mutate({
+                        imageId: editingCaption,
+                        caption
+                      });
+                    }
+                  }}
+                  disabled={updateCaptionMutation.isPending}
+                >
+                  {updateCaptionMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : 'Save Caption'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+// Create a helper component for displaying S3 images
+interface S3ImageProps {
+  imageUrl: string;
+  caption?: string;
+  className?: string;
+}
+
+function S3Image({ imageUrl, caption, className = '' }: S3ImageProps) {
+  const { url, loading, error } = useS3Image(imageUrl);
+  
+  if (loading) {
+    return (
+      <div className={`flex items-center justify-center p-4 ${className}`}>
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+  
+  if (error || !url) {
+    return (
+      <div className={`flex items-center justify-center p-4 bg-gray-100 dark:bg-gray-800 ${className}`}>
+        <div className="text-center text-gray-500">
+          <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+          <p>Failed to load image</p>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className={`relative ${className}`}>
+      <img
+        src={url}
+        alt={caption || 'Timeline image'}
+        className="w-full rounded-md object-contain"
+      />
+      {caption && (
+        <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+          {caption}
+        </div>
+      )}
     </div>
   );
 }

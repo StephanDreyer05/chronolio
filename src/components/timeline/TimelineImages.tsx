@@ -7,6 +7,9 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { useDrag, useDrop } from 'react-dnd';
 
@@ -347,8 +350,13 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
               {editingCaption === image.id && (
                 <Dialog open={true} onOpenChange={() => setEditingCaption(null)}>
                   <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Edit Caption</DialogTitle>
+                      <DialogDescription>
+                        Update the caption for this image.
+                      </DialogDescription>
+                    </DialogHeader>
                     <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Edit Caption</h3>
                       <Input
                         value={caption}
                         onChange={(e) => setCaption(e.target.value)}

@@ -1,11 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "../db/index.js";
-import { timelines, timelineCategories, timelineEvents, templates, userSettings, timelineImages, vendorTypes, vendors, timelineVendors, timelineEventVendors, publicTimelineShares, eventTypes, trialUsers, type SelectUser } from "../db/schema.js";
+import { timelines, timelineCategories, timelineEvents, templates, userSettings, timelineImages, vendorTypes, vendors, timelineVendors, timelineEventVendors, publicTimelineShares, trialUsers, type SelectUser } from "../db/schema.js";
 import { eq, and, inArray, or } from "drizzle-orm";
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { sql } from 'drizzle-orm';
 import express from 'express';
 import crypto from 'crypto';
@@ -1158,7 +1156,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Update the image upload endpoint to correctly handle remaining slots
+  // Update the image upload endpoint to correctly handle image uploads and S3 storage
   app.post('/api/timelines/:id/images', upload.array('images', 10), async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
@@ -1194,24 +1192,73 @@ export function registerRoutes(app: Express): Server {
         size: f.size
       })));
 
-      // This is a placeholder - in a production environment, you should:
-      // 1. Upload these files to a cloud storage service like S3, Cloudinary, or Vercel Blob
-      // 2. Store the URL from the cloud storage in the database
-      // For now, we'll create a mock URL
+      // Import the S3 service
+      const s3Service = (await import('./services/s3Service.js')).default;
       
+      // Upload each file to S3 and store results
+      const uploadResults = await Promise.all(
+        filesToProcess.map(async (file, index) => {
+          // Generate a unique S3 key
+          const timestamp = Date.now();
+          const randomString = Math.random().toString(36).substring(2, 15);
+          const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '-');
+          const key = `timelines/${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
+          
+          try {
+            // Upload the file to S3
+            const uploadResult = await s3Service.uploadFile(
+              file.buffer,
+              key,
+              file.mimetype
+            );
+            
+            if (!uploadResult.success) {
+              console.warn('S3 upload failed, using fallback storage:', uploadResult.error);
+              return {
+                imageUrl: `memory-storage-placeholder-${sanitizedFileName}`,
+                caption: captions[file.originalname] || '',
+                order: parseInt(count.toString()) + index,
+                uploadFailed: true
+              };
+            }
+            
+            return {
+              imageUrl: key, // Store the S3 key as the image URL
+              caption: captions[file.originalname] || '',
+              order: parseInt(count.toString()) + index,
+              uploadFailed: false
+            };
+          } catch (error) {
+            console.error('Error during file upload:', error);
+            return {
+              imageUrl: `memory-storage-placeholder-${sanitizedFileName}`,
+              caption: captions[file.originalname] || '',
+              order: parseInt(count.toString()) + index,
+              uploadFailed: true
+            };
+          }
+        })
+      );
+      
+      // Insert the results into the database
       const insertedImages = await db.insert(timelineImages)
         .values(
-          filesToProcess.map((file, index) => ({
+          uploadResults.map(result => ({
             timelineId,
-            // This is a placeholder URL - in production, use actual cloud storage URLs
-            imageUrl: `memory-storage-placeholder-${file.originalname}`,
-            caption: captions[file.originalname] || '',
-            order: parseInt(count.toString()) + index,
+            imageUrl: result.imageUrl,
+            caption: result.caption,
+            order: result.order
           }))
         )
         .returning();
 
-      res.json(insertedImages);
+      // Add a flag to indicate which uploads used fallback storage
+      const responseImages = insertedImages.map((img, index) => ({
+        ...img,
+        usingFallbackStorage: uploadResults[index].uploadFailed
+      }));
+
+      res.json(responseImages);
     } catch (error) {
       console.error('Error uploading timeline images:', error);
       res.status(500).json({ message: 'Failed to upload timeline images' });
@@ -3201,6 +3248,685 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error sharing timeline via email:', error);
       return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get all timeline images (global endpoint)
+  app.get('/api/timeline-images', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+
+      const userId = req.user!.id;
+      
+      // Join with timelines to only get images for timelines that belong to this user
+      const images = await db
+        .select({
+          id: timelineImages.id,
+          timelineId: timelineImages.timelineId,
+          imageUrl: timelineImages.imageUrl,
+          caption: timelineImages.caption,
+          order: timelineImages.order,
+          createdAt: timelineImages.createdAt,
+          updatedAt: timelineImages.updatedAt,
+        })
+        .from(timelineImages)
+        .innerJoin(timelines, eq(timelineImages.timelineId, timelines.id))
+        .where(eq(timelines.userId, userId))
+        .orderBy(timelineImages.order);
+
+      res.json(images);
+    } catch (error) {
+      console.error('Error fetching all timeline images:', error);
+      res.status(500).json({ message: 'Failed to fetch timeline images' });
+    }
+  });
+
+  // Add these new S3 API endpoints alongside your existing s3/test endpoint
+
+  // Get a signed URL for an S3 object
+  app.get('/api/s3/url/:key', async (req, res) => {
+    try {
+      const key = req.params.key;
+      
+      if (!key) {
+        return res.status(400).json({
+          success: false,
+          message: 'Key parameter is required'
+        });
+      }
+      
+      // Import the S3 service
+      const s3Service = (await import('./services/s3Service.js')).default;
+      
+      // Generate a signed URL
+      const result = await s3Service.generateSignedUrl(key);
+      
+      // Return the result
+      res.json(result);
+    } catch (error) {
+      console.error('Error generating S3 signed URL:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to generate signed URL',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Update the upload endpoint for files to S3 - direct implementation
+  app.post('/api/s3/upload/:timelineId', upload.single('file'), async (req, res) => {
+    try {
+      console.log('=== DIRECT S3 UPLOAD ===');
+      
+      // Authentication check
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+
+      // File check
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file provided' });
+      }
+
+      const timelineId = parseInt(req.params.timelineId);
+      const file = req.file;
+      
+      // Generate a unique key using the filename
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 8);
+      const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '-');
+      const key = `timeline-${timelineId}/${timestamp}-${randomString}-${sanitizedFileName}`;
+
+      console.log('Upload details:', {
+        timelineId,
+        fileName: file.originalname,
+        fileSize: file.size,
+        fileMimeType: file.mimetype,
+        sanitizedFileName,
+        s3Key: key
+      });
+      
+      // Import S3 service
+      const s3Service = (await import('./services/s3Service.js')).default;
+      
+      // Directly upload to S3
+      const uploadResult = await s3Service.uploadFile(file.buffer, key, file.mimetype);
+      
+      console.log('Upload result:', {
+        success: uploadResult.success,
+        key: uploadResult.key,
+        error: uploadResult.error || null
+      });
+      
+      // Only return success if the upload was actually successful
+      if (!uploadResult.success) {
+        console.error('S3 UPLOAD FAILED:', uploadResult.error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload file to S3',
+          error: uploadResult.error
+        });
+      }
+      
+      // Return success response with the appropriate data
+      return res.status(200).json({
+        success: true,
+        key: uploadResult.key,
+        url: uploadResult.url
+      });
+    } catch (error) {
+      console.error('S3 UPLOAD ERROR:', error);
+      
+      // Return detailed error for debugging
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload file to S3',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Delete an object from S3
+  app.delete('/api/s3/object/:key', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+      
+      const key = req.params.key;
+      
+      if (!key) {
+        return res.status(400).json({
+          success: false,
+          message: 'Key parameter is required'
+        });
+      }
+      
+      // Here you would delete the file from S3
+      // For now, we'll just return success
+      
+      res.json({
+        success: true,
+        message: 'Server-side delete simulation successful'
+      });
+    } catch (error) {
+      console.error('Error deleting from S3:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete file',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Add a route to serve images stored with the memory-storage-placeholder prefix
+  app.get('/api/images/:filename', async (req, res) => {
+    try {
+      // Add CORS headers
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+      
+      const filename = req.params.filename;
+      
+      // Check if this is a local/fallback image (memory-storage-placeholder prefix)
+      if (filename.startsWith('memory-storage-placeholder-')) {
+        // For fallback images, look them up in the database and serve a placeholder
+        res.set('Content-Type', 'image/svg+xml');
+        const placeholderSvg = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+          <rect width="200" height="200" fill="#f0f0f0"/>
+          <text x="50%" y="50%" font-family="Arial" font-size="20" text-anchor="middle" fill="#999999">Image Unavailable</text>
+          <text x="50%" y="70%" font-family="Arial" font-size="12" text-anchor="middle" fill="#999999">${filename.replace('memory-storage-placeholder-', '')}</text>
+        </svg>`;
+        return res.send(placeholderSvg);
+      }
+      
+      // For S3 images, redirect to the signed URL
+      const s3Service = (await import('./services/s3Service.js')).default;
+      const urlResult = await s3Service.generateSignedUrl(filename);
+      
+      if (urlResult.success && urlResult.url) {
+        return res.redirect(urlResult.url);
+      } else if (urlResult.mockUrl) {
+        // If we got a mock URL (base64 image), send it directly
+        // Extract the content type and data from the data URL
+        const matches = urlResult.mockUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          const contentType = matches[1];
+          const base64Data = matches[2];
+          const buffer = Buffer.from(base64Data, 'base64');
+          
+          res.set('Content-Type', contentType);
+          return res.send(buffer);
+        }
+      }
+      
+      // If we couldn't get a URL, send a placeholder
+      res.set('Content-Type', 'image/svg+xml');
+      const errorSvg = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+        <rect width="200" height="200" fill="#f8d7da"/>
+        <text x="50%" y="50%" font-family="Arial" font-size="20" text-anchor="middle" fill="#721c24">Image Error</text>
+        <text x="50%" y="70%" font-family="Arial" font-size="12" text-anchor="middle" fill="#721c24">Could not load ${filename}</text>
+      </svg>`;
+      return res.send(errorSvg);
+    } catch (error) {
+      console.error('Error serving image:', error);
+      res.status(500).set('Content-Type', 'image/svg+xml');
+      const errorSvg = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+        <rect width="200" height="200" fill="#f8d7da"/>
+        <text x="50%" y="50%" font-family="Arial" font-size="20" text-anchor="middle" fill="#721c24">Server Error</text>
+      </svg>`;
+      res.send(errorSvg);
+    }
+  });
+
+  // Add a diagnostic endpoint for AWS connectivity
+  app.get('/api/aws-check', async (req, res) => {
+    try {
+      // Log environment variable availability
+      console.log('AWS environment check from endpoint:');
+      console.log('AWS_REGION:', process.env.AWS_REGION ? 'Available' : 'Not available');
+      console.log('AWS_ACCESS_KEY_ID:', process.env.AWS_ACCESS_KEY_ID ? 'Available' : 'Not available');
+      console.log('AWS_SECRET_ACCESS_KEY:', process.env.AWS_SECRET_ACCESS_KEY ? 'Available' : 'Not available');
+      console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME ? 'Available' : 'Not available');
+      
+      // Import the S3 service
+      const s3Service = (await import('./services/s3Service.js')).default;
+      
+      // Run connection test
+      const testResult = await s3Service.testConnection();
+      
+      // Return diagnostic information
+      return res.json({
+        environmentCheck: {
+          hasRegion: Boolean(process.env.AWS_REGION),
+          hasAccessKey: Boolean(process.env.AWS_ACCESS_KEY_ID),
+          hasSecretKey: Boolean(process.env.AWS_SECRET_ACCESS_KEY),
+          hasBucketName: Boolean(process.env.AWS_S3_BUCKET_NAME)
+        },
+        serviceStatus: {
+          usingDirectFetch: s3Service.usingDirectFetch || false,
+          connectionTestResult: testResult
+        },
+        serverInfo: {
+          nodeEnv: process.env.NODE_ENV,
+          vercelEnv: process.env.VERCEL_ENV,
+          region: process.env.VERCEL_REGION
+        }
+      });
+    } catch (error) {
+      console.error('Error in AWS check endpoint:', error);
+      return res.status(500).json({
+        error: String(error),
+        message: 'Failed to check AWS configuration'
+      });
+    }
+  });
+
+  // Add a comprehensive AWS diagnostic endpoint
+  app.get('/api/aws-diagnostics', async (req, res) => {
+    try {
+      console.log('=== COMPREHENSIVE AWS DIAGNOSTICS ===');
+      
+      // Phase 1: Basic environment variable check
+      console.log('Phase 1: Checking environment variables');
+      const diagnosticResult = {
+        timestamp: new Date().toISOString(),
+        phases: {
+          environment: {
+            variables: {
+              AWS_REGION: {
+                exists: typeof process.env.AWS_REGION !== 'undefined',
+                value: process.env.AWS_REGION || 'undefined',
+                empty: !process.env.AWS_REGION
+              },
+              AWS_ACCESS_KEY_ID: {
+                exists: typeof process.env.AWS_ACCESS_KEY_ID !== 'undefined',
+                length: process.env.AWS_ACCESS_KEY_ID?.length || 0,
+                prefix: process.env.AWS_ACCESS_KEY_ID ? 
+                       process.env.AWS_ACCESS_KEY_ID.substring(0, 4) + '...' : 'undefined',
+                empty: !process.env.AWS_ACCESS_KEY_ID
+              },
+              AWS_SECRET_ACCESS_KEY: {
+                exists: typeof process.env.AWS_SECRET_ACCESS_KEY !== 'undefined',
+                length: process.env.AWS_SECRET_ACCESS_KEY?.length || 0,
+                empty: !process.env.AWS_SECRET_ACCESS_KEY
+              },
+              AWS_S3_BUCKET_NAME: {
+                exists: typeof process.env.AWS_S3_BUCKET_NAME !== 'undefined',
+                value: process.env.AWS_S3_BUCKET_NAME || 'undefined',
+                empty: !process.env.AWS_S3_BUCKET_NAME
+              }
+            },
+            summary: {
+              allVariablesExist: Boolean(
+                process.env.AWS_REGION && 
+                process.env.AWS_ACCESS_KEY_ID && 
+                process.env.AWS_SECRET_ACCESS_KEY && 
+                process.env.AWS_S3_BUCKET_NAME
+              ),
+              missingVariables: [
+                !process.env.AWS_REGION ? 'AWS_REGION' : null,
+                !process.env.AWS_ACCESS_KEY_ID ? 'AWS_ACCESS_KEY_ID' : null,
+                !process.env.AWS_SECRET_ACCESS_KEY ? 'AWS_SECRET_ACCESS_KEY' : null,
+                !process.env.AWS_S3_BUCKET_NAME ? 'AWS_S3_BUCKET_NAME' : null
+              ].filter(Boolean)
+            }
+          }
+        }
+      };
+      
+      // Phase 2: AWS SDK import check
+      console.log('Phase 2: Checking AWS SDK import');
+      diagnosticResult.phases.awsSdk = {
+        status: 'pending'
+      };
+      
+      try {
+        const awsSdkStart = Date.now();
+        const { S3Client } = await import('@aws-sdk/client-s3');
+        const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+        const awsSdkEnd = Date.now();
+        
+        diagnosticResult.phases.awsSdk = {
+          status: 'success',
+          importTime: `${awsSdkEnd - awsSdkStart}ms`,
+          modules: {
+            S3Client: typeof S3Client === 'function',
+            getSignedUrl: typeof getSignedUrl === 'function'
+          }
+        };
+        
+        // Phase 3: S3 Client initialization
+        console.log('Phase 3: Initializing S3 client');
+        diagnosticResult.phases.s3Client = {
+          status: 'pending'
+        };
+        
+        if (diagnosticResult.phases.environment.summary.allVariablesExist) {
+          try {
+            const clientStart = Date.now();
+            const s3Client = new S3Client({
+              region: process.env.AWS_REGION,
+              credentials: {
+                accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+              }
+            });
+            const clientEnd = Date.now();
+            
+            diagnosticResult.phases.s3Client = {
+              status: 'success',
+              initTime: `${clientEnd - clientStart}ms`
+            };
+            
+            // Phase 4: Connection test
+            console.log('Phase 4: Testing S3 connection');
+            diagnosticResult.phases.connectionTest = {
+              status: 'pending'
+            };
+            
+            try {
+              const { ListBucketsCommand } = await import('@aws-sdk/client-s3');
+              const testStart = Date.now();
+              const command = new ListBucketsCommand({});
+              const response = await s3Client.send(command);
+              const testEnd = Date.now();
+              
+              diagnosticResult.phases.connectionTest = {
+                status: 'success',
+                responseTime: `${testEnd - testStart}ms`,
+                bucketCount: response.Buckets?.length || 0,
+                requestId: response.$metadata?.requestId
+              };
+            } catch (connectionError) {
+              diagnosticResult.phases.connectionTest = {
+                status: 'error',
+                message: connectionError.message,
+                code: connectionError.code,
+                requestId: connectionError.$metadata?.requestId,
+                stackTrace: connectionError.stack
+              };
+            }
+          } catch (clientError) {
+            diagnosticResult.phases.s3Client = {
+              status: 'error',
+              message: clientError.message,
+              stackTrace: clientError.stack
+            };
+          }
+        } else {
+          diagnosticResult.phases.s3Client = {
+            status: 'skipped',
+            reason: 'Missing required environment variables'
+          };
+          
+          diagnosticResult.phases.connectionTest = {
+            status: 'skipped',
+            reason: 'S3 client initialization skipped'
+          };
+        }
+      } catch (sdkError) {
+        diagnosticResult.phases.awsSdk = {
+          status: 'error',
+          message: sdkError.message,
+          stackTrace: sdkError.stack
+        };
+        
+        diagnosticResult.phases.s3Client = {
+          status: 'skipped',
+          reason: 'AWS SDK import failed'
+        };
+        
+        diagnosticResult.phases.connectionTest = {
+          status: 'skipped',
+          reason: 'AWS SDK import failed'
+        };
+      }
+      
+      // Phase 5: S3 service test
+      console.log('Phase 5: Testing S3 service wrapper');
+      diagnosticResult.phases.s3Service = {
+        status: 'pending'
+      };
+      
+      try {
+        const s3Service = (await import('./services/s3Service.js')).default;
+        const serviceTestStart = Date.now();
+        const testResult = await s3Service.testConnection();
+        const serviceTestEnd = Date.now();
+        
+        diagnosticResult.phases.s3Service = {
+          status: 'complete',
+          responseTime: `${serviceTestEnd - serviceTestStart}ms`,
+          success: testResult.success,
+          message: testResult.message,
+          usingDirectFetch: testResult.usingDirectFetch,
+          additionalDetails: testResult
+        };
+      } catch (serviceError) {
+        diagnosticResult.phases.s3Service = {
+          status: 'error',
+          message: serviceError.message,
+          stackTrace: serviceError.stack
+        };
+      }
+      
+      // Return the diagnostic results
+      console.log('=== DIAGNOSTICS COMPLETE ===');
+      return res.json(diagnosticResult);
+    } catch (error) {
+      console.error('Error in AWS diagnostics endpoint:', error);
+      return res.status(500).json({
+        timestamp: new Date().toISOString(),
+        status: 'error',
+        message: 'Error while running AWS diagnostics',
+        error: String(error),
+        stack: error.stack
+      });
+    }
+  });
+
+  // Add comprehensive AWS diagnostic endpoint
+  app.get('/api/aws-status', async (req, res) => {
+    try {
+      console.log('=== AWS DIAGNOSTIC REQUEST ===');
+      
+      // 1. Check AWS environment variables
+      const envVars = {
+        AWS_REGION: process.env.AWS_REGION,
+        AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+        AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+        AWS_S3_BUCKET_NAME: process.env.AWS_S3_BUCKET_NAME
+      };
+      
+      // Log environment variable status (without exposing secrets)
+      const envStatus = {
+        AWS_REGION: envVars.AWS_REGION ? `Set (${envVars.AWS_REGION})` : 'NOT SET',
+        AWS_ACCESS_KEY_ID: envVars.AWS_ACCESS_KEY_ID ? 
+          `Set (Length: ${envVars.AWS_ACCESS_KEY_ID.length}, starts with: ${envVars.AWS_ACCESS_KEY_ID.substring(0, 3)}...)` : 
+          'NOT SET',
+        AWS_SECRET_ACCESS_KEY: envVars.AWS_SECRET_ACCESS_KEY ? 
+          `Set (Length: ${envVars.AWS_SECRET_ACCESS_KEY.length})` : 
+          'NOT SET',
+        AWS_S3_BUCKET_NAME: envVars.AWS_S3_BUCKET_NAME ? 
+          `Set (${envVars.AWS_S3_BUCKET_NAME})` : 
+          'NOT SET'
+      };
+      
+      console.log('AWS Environment Variables:', envStatus);
+      
+      // 2. Check AWS SDK availability
+      let awsSdkStatus = { available: false, error: null };
+      try {
+        const startTime = Date.now();
+        const { S3Client } = await import('@aws-sdk/client-s3');
+        const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+        awsSdkStatus = {
+          available: true,
+          loadTime: `${Date.now() - startTime}ms`,
+          modules: {
+            S3Client: typeof S3Client === 'function',
+            getSignedUrl: typeof getSignedUrl === 'function'
+          }
+        };
+        console.log('AWS SDK successfully imported');
+      } catch (sdkError) {
+        awsSdkStatus = {
+          available: false,
+          error: sdkError instanceof Error ? sdkError.message : String(sdkError)
+        };
+        console.error('AWS SDK import failed:', sdkError);
+      }
+      
+      // 3. Test S3 connection
+      let s3ConnectionStatus = { connected: false, error: null };
+      if (awsSdkStatus.available && 
+          envVars.AWS_REGION && 
+          envVars.AWS_ACCESS_KEY_ID && 
+          envVars.AWS_SECRET_ACCESS_KEY) {
+        try {
+          console.log('Testing S3 connection...');
+          const { S3Client, ListBucketsCommand } = await import('@aws-sdk/client-s3');
+          
+          const s3Client = new S3Client({
+            region: envVars.AWS_REGION,
+            credentials: {
+              accessKeyId: envVars.AWS_ACCESS_KEY_ID,
+              secretAccessKey: envVars.AWS_SECRET_ACCESS_KEY
+            }
+          });
+          
+          // Minimal test with timeout
+          const startTime = Date.now();
+          const command = new ListBucketsCommand({});
+          const response = await Promise.race([
+            s3Client.send(command),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('S3 connection timeout')), 5000)
+            )
+          ]);
+          
+          s3ConnectionStatus = {
+            connected: true,
+            responseTime: `${Date.now() - startTime}ms`,
+            buckets: response.Buckets?.length || 0
+          };
+          console.log('S3 connection successful');
+        } catch (connError) {
+          s3ConnectionStatus = {
+            connected: false,
+            error: connError instanceof Error ? connError.message : String(connError)
+          };
+          console.error('S3 connection failed:', connError);
+        }
+      } else {
+        console.log('Skipping S3 connection test due to missing requirements');
+      }
+      
+      // 4. Try to upload a test file
+      let uploadTest = { success: false, error: null };
+      if (s3ConnectionStatus.connected) {
+        try {
+          console.log('Performing test upload...');
+          const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+          
+          const s3Client = new S3Client({
+            region: envVars.AWS_REGION,
+            credentials: {
+              accessKeyId: envVars.AWS_ACCESS_KEY_ID,
+              secretAccessKey: envVars.AWS_SECRET_ACCESS_KEY
+            }
+          });
+          
+          // Create a simple test file
+          const testKey = `test-${Date.now()}.txt`;
+          const testContent = Buffer.from('This is a test file from AWS diagnostics');
+          
+          const uploadCommand = new PutObjectCommand({
+            Bucket: envVars.AWS_S3_BUCKET_NAME,
+            Key: testKey,
+            Body: testContent,
+            ContentType: 'text/plain'
+          });
+          
+          const startTime = Date.now();
+          await s3Client.send(uploadCommand);
+          
+          uploadTest = {
+            success: true,
+            key: testKey,
+            uploadTime: `${Date.now() - startTime}ms`
+          };
+          console.log('Test upload successful');
+        } catch (uploadError) {
+          uploadTest = {
+            success: false,
+            error: uploadError instanceof Error ? uploadError.message : String(uploadError)
+          };
+          console.error('Test upload failed:', uploadError);
+        }
+      } else {
+        console.log('Skipping upload test due to S3 connection failure');
+      }
+      
+      // Return comprehensive diagnostic results
+      res.json({
+        timestamp: new Date().toISOString(),
+        environment: {
+          node_env: process.env.NODE_ENV,
+          vercel_env: process.env.VERCEL_ENV,
+          region: process.env.REGION || process.env.VERCEL_REGION
+        },
+        aws_environment: envStatus,
+        aws_sdk: awsSdkStatus,
+        s3_connection: s3ConnectionStatus,
+        upload_test: uploadTest,
+        overall_status: uploadTest.success ? 'healthy' : 'unhealthy'
+      });
+    } catch (error) {
+      console.error('AWS diagnostic endpoint error:', error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // Add S3 diagnostic endpoint for troubleshooting
+  app.get('/api/s3/diagnostic', async (req, res) => {
+    try {
+      console.log('Running S3 diagnostic check...');
+      
+      // Import the S3 service
+      const s3Module = await import('./services/s3Service.js');
+      const s3Service = s3Module.default;
+      
+      // Run the diagnostic check
+      const diagnosticResult = await s3Module.diagnosticCheck();
+      
+      // Return the comprehensive diagnostic information
+      return res.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        diagnosticResult,
+        // Add some additional environment information that might be useful
+        environment: {
+          nodeEnv: process.env.NODE_ENV,
+          vercelEnv: process.env.VERCEL_ENV,
+          region: process.env.VERCEL_REGION,
+          deploymentUrl: process.env.VERCEL_URL
+        }
+      });
+    } catch (error) {
+      console.error('Error in S3 diagnostic endpoint:', error);
+      return res.status(500).json({
+        success: false,
+        error: String(error),
+        message: 'Failed to run S3 diagnostic check'
+      });
     }
   });
 
