@@ -6,38 +6,34 @@
 
 // Add debug logging at the top of the file to see exactly what we're working with
 console.log('=== S3SERVICE ENVIRONMENT DEBUG ===');
-console.log('Raw AWS environment variables:');
-console.log('AWS_REGION:', process.env.AWS_REGION);
-console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME);
-console.log('AWS_ACCESS_KEY_ID exists:', !!process.env.AWS_ACCESS_KEY_ID);
-console.log('AWS_SECRET_ACCESS_KEY_ID exists:', !!process.env.AWS_SECRET_ACCESS_KEY_ID);
-console.log('AWS_SECRET_ACCESS_KEY exists:', !!process.env.AWS_SECRET_ACCESS_KEY);
 
-// Helper function to sanitize environment variables that might contain template literals
-function getEnvVar(name, defaultValue = '') {
-  const value = process.env[name] || '';
-  // Check if the value is a template literal string (${...})
-  if (value.includes('${') && value.includes('}')) {
-    console.warn(`WARNING: Environment variable ${name} contains template literal syntax: ${value}`);
-    return defaultValue;
-  }
-  return value;
-}
+// Log the direct environment variables (non-sanitized, just the raw values)
+console.log('Direct environment variables:');
+console.log('process.env.AWS_REGION:', process.env.AWS_REGION);
+console.log('process.env.AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME);
+console.log('process.env.AWS_ACCESS_KEY_ID:', process.env.AWS_ACCESS_KEY_ID ? 'SET (redacted)' : 'NOT SET');
+console.log('process.env.AWS_SECRET_ACCESS_KEY_ID:', process.env.AWS_SECRET_ACCESS_KEY_ID ? 'SET (redacted)' : 'NOT SET');
 
-// Get sanitized environment variables using correct environment variable names
-const REGION = getEnvVar('AWS_REGION', 'us-east-1');
-const BUCKET_NAME = getEnvVar('AWS_S3_BUCKET_NAME', 'chronolio-uploads');
-const ACCESS_KEY_ID = getEnvVar('AWS_ACCESS_KEY_ID');
-// Use AWS_SECRET_ACCESS_KEY_ID instead of AWS_SECRET_ACCESS_KEY
-const SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY_ID 
-  ? getEnvVar('AWS_SECRET_ACCESS_KEY_ID') 
-  : getEnvVar('AWS_SECRET_ACCESS_KEY'); // Fallback for backward compatibility
+// Set hardcoded values for testing when environment variables are not available
+const DEFAULT_REGION = 'eu-north-1';
+const DEFAULT_BUCKET = 'chronolio.timeline.images';
 
-console.log('Sanitized environment variables:');
+// Direct access to environment variables - no sanitization
+const REGION = process.env.AWS_REGION || DEFAULT_REGION;
+const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || DEFAULT_BUCKET;
+const ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || '';
+const SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY_ID || ''; // Using the correct variable name
+
+// Log the values being used (to confirm they are actually accessible)
+console.log('Values being used:');
 console.log('REGION:', REGION);
 console.log('BUCKET_NAME:', BUCKET_NAME);
 console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
 console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
+
+// Check if we have all required config
+const hasValidConfig = REGION && BUCKET_NAME && ACCESS_KEY_ID && SECRET_ACCESS_KEY;
+console.log('Has valid S3 configuration:', hasValidConfig);
 
 // S3 client instance
 let s3Client = null;
@@ -308,30 +304,23 @@ const s3Service = {
 export async function initializeS3Service() {
   console.log('=== S3 SERVICE INITIALIZATION - DEBUGGING ===');
   
-  // Use sanitized environment variables
-  console.log('Using sanitized environment variables:');
+  // Direct log of the environment variables being used
+  console.log('Environment variables for S3 initialization:');
   console.log('REGION:', REGION);
   console.log('BUCKET_NAME:', BUCKET_NAME);
   console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
   console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
   
-  if (!REGION || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY || !BUCKET_NAME) {
-    const missingVars = [
-      !REGION ? 'REGION' : null,
-      !ACCESS_KEY_ID ? 'ACCESS_KEY_ID' : null,
-      !SECRET_ACCESS_KEY ? 'SECRET_ACCESS_KEY' : null,
-      !BUCKET_NAME ? 'BUCKET_NAME' : null
-    ].filter(Boolean);
-    
-    console.warn(`WARNING: Missing required AWS environment variables: ${missingVars.join(', ')}`);
+  // Check if all required variables are available
+  if (!ACCESS_KEY_ID || !SECRET_ACCESS_KEY) {
+    console.warn(`WARNING: Missing required AWS credentials. Cannot initialize S3 client.`);
     console.log('Falling back to direct fetch implementation');
     return false;
   }
   
-  // Try to dynamically import AWS SDK modules
+  // Try to import AWS SDK modules
   console.log('Attempting to import AWS SDK modules...');
   try {
-    // Import all AWS SDK modules at once to avoid multiple imports
     console.log('Importing AWS SDK modules...');
     const { 
       S3Client, 
@@ -343,13 +332,14 @@ export async function initializeS3Service() {
     console.log('Importing S3 request presigner...');
     const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
     
-    // Log the actual values being used to create the client
-    console.log('S3 client initialization with:');
-    console.log('  - Region:', REGION);
-    console.log('  - Bucket:', BUCKET_NAME);
+    // Clearly log what credentials we're using
+    console.log('Initializing S3 client with:');
+    console.log(`- Region: ${REGION}`);
+    console.log(`- Access Key ID: ${ACCESS_KEY_ID.substring(0, 4)}...`);
+    console.log(`- Secret Access Key: ${SECRET_ACCESS_KEY ? 'Provided (redacted)' : 'NOT PROVIDED'}`);
+    console.log(`- Bucket: ${BUCKET_NAME}`);
     
-    // Initialize S3 client with sanitized environment variables
-    console.log('Creating AWS S3 client...');
+    // Initialize S3 client
     try {
       s3Client = new S3Client({
         region: REGION,
@@ -362,75 +352,93 @@ export async function initializeS3Service() {
       // Test connection
       console.log('Testing connection to AWS S3...');
       const command = new ListBucketsCommand({});
-      const response = await s3Client.send(command);
-      console.log(`Successfully connected to AWS S3. Found ${response.Buckets?.length || 0} buckets.`);
       
-      // Override the direct fetch implementation with AWS SDK implementation
-      console.log('Setting up AWS SDK S3 service methods...');
-      
-      // Override the uploadFile method
-      s3Service.uploadFile = async (fileBuffer, key, contentType) => {
-        console.log(`Uploading file to S3 with key: ${key} using AWS SDK`);
+      try {
+        const response = await s3Client.send(command);
+        console.log(`Successfully connected to AWS S3. Found ${response.Buckets?.length || 0} buckets.`);
         
-        try {
-          const command = new PutObjectCommand({
-            Bucket: BUCKET_NAME,
-            Key: key,
-            Body: fileBuffer,
-            ContentType: contentType
-          });
-          
-          await s3Client.send(command);
-          console.log('File uploaded successfully using AWS SDK');
-          
-          const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`;
-          return {
-            success: true,
-            key: key,
-            url: url
-          };
-        } catch (error) {
-          console.error('Error uploading file with AWS SDK:', error);
-          return {
-            success: false,
-            key: key,
-            error: String(error)
-          };
-        }
-      };
-      
-      // Override the generateSignedUrl method
-      s3Service.generateSignedUrl = async (key, expirationSeconds = 3600) => {
-        console.log(`Generating signed URL for key: ${key} using AWS SDK`);
+        // Override the direct fetch implementation with AWS SDK implementation
+        console.log('Setting up AWS SDK S3 service methods...');
         
-        try {
-          const command = new GetObjectCommand({
-            Bucket: BUCKET_NAME,
-            Key: key
-          });
+        // Override the uploadFile method
+        s3Service.uploadFile = async (fileBuffer, key, contentType) => {
+          console.log(`Uploading file to S3 with key: ${key} using AWS SDK`);
           
-          const url = await getSignedUrl(s3Client, command, { expiresIn: expirationSeconds });
-          console.log('Successfully generated signed URL');
+          try {
+            // Normalize the key to prevent double slashes
+            const normalizedKey = normalizeS3Key(key);
+            
+            const command = new PutObjectCommand({
+              Bucket: BUCKET_NAME,
+              Key: normalizedKey,
+              Body: fileBuffer,
+              ContentType: contentType
+            });
+            
+            await s3Client.send(command);
+            console.log('File uploaded successfully using AWS SDK');
+            
+            const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${normalizedKey}`;
+            return {
+              success: true,
+              key: normalizedKey,
+              url: url
+            };
+          } catch (error) {
+            console.error('Error uploading file with AWS SDK:', error);
+            return {
+              success: false,
+              key: key,
+              error: String(error)
+            };
+          }
+        };
+        
+        // Override the generateSignedUrl method
+        s3Service.generateSignedUrl = async (key, expirationSeconds = 3600) => {
+          console.log(`Generating signed URL for key: ${key} using AWS SDK`);
           
-          return {
-            success: true,
-            url: url
-          };
-        } catch (error) {
-          console.error('Error generating signed URL with AWS SDK:', error);
-          return {
-            success: false,
-            url: null,
-            error: String(error)
-          };
-        }
-      };
-      
-      // Mark as using AWS SDK (not direct fetch)
-      s3Service.usingDirectFetch = false;
-      
-      console.log('Successfully initialized AWS S3 service with AWS SDK');
-      return true;
+          try {
+            // Normalize the key to prevent double slashes
+            const normalizedKey = normalizeS3Key(key);
+            
+            const command = new GetObjectCommand({
+              Bucket: BUCKET_NAME,
+              Key: normalizedKey
+            });
+            
+            const url = await getSignedUrl(s3Client, command, { expiresIn: expirationSeconds });
+            console.log('Successfully generated signed URL');
+            
+            return {
+              success: true,
+              url: url
+            };
+          } catch (error) {
+            console.error('Error generating signed URL with AWS SDK:', error);
+            return {
+              success: false,
+              url: null,
+              error: String(error)
+            };
+          }
+        };
+        
+        // Mark as using AWS SDK (not direct fetch)
+        s3Service.usingDirectFetch = false;
+        
+        console.log('Successfully initialized AWS S3 service with AWS SDK');
+        return true;
+      } catch (sendError) {
+        console.error('Error testing S3 connection with credentials:', sendError);
+        console.log('AWS SDK error details:', {
+          code: sendError.code,
+          message: sendError.message,
+          name: sendError.name,
+          $metadata: sendError.$metadata
+        });
+        return false;
+      }
     } catch (clientError) {
       console.error('Failed to initialize S3 client:', clientError);
       console.log('Falling back to direct fetch implementation');
@@ -443,81 +451,43 @@ export async function initializeS3Service() {
   }
 }
 
-// Helper function to dynamically import AWS SDK modules
-async function dynamicImport(moduleName) {
-  try {
-    console.log(`Attempting to import AWS SDK module: ${moduleName}`);
-    
-    if (moduleName === 'S3Client' || moduleName === 'ListBucketsCommand' || 
-        moduleName === 'PutObjectCommand' || moduleName === 'GetObjectCommand') {
-      try {
-        const { S3Client, ListBucketsCommand, PutObjectCommand, GetObjectCommand } = 
-          await import('@aws-sdk/client-s3');
-        
-        const modules = {
-          S3Client,
-          ListBucketsCommand,
-          PutObjectCommand,
-          GetObjectCommand
-        };
-        
-        const result = modules[moduleName];
-        if (result) {
-          console.log(`Successfully imported: ${moduleName}`);
-          return result;
-        } else {
-          console.error(`Module ${moduleName} not found in import result`);
-          return null;
-        }
-      } catch (error) {
-        console.error(`Error importing from @aws-sdk/client-s3:`, error);
-        return null;
-      }
-    } else if (moduleName === 'getSignedUrl') {
-      try {
-        const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
-        console.log(`Successfully imported: ${moduleName}`);
-        return getSignedUrl;
-      } catch (error) {
-        console.error(`Error importing from @aws-sdk/s3-request-presigner:`, error);
-        return null;
-      }
-    }
-    
-    console.error(`Unknown module name: ${moduleName}`);
-    return null;
-  } catch (error) {
-    console.error(`Failed to import ${moduleName}:`, error);
-    return null;
-  }
-}
-
 // Upload a file to S3
 export async function uploadFile(fileBuffer, key, contentType) {
   // Check if we're using direct fetch implementation
   if (s3Service.usingDirectFetch) {
     console.log('Using direct fetch implementation for file upload');
     
-    // Use sanitized environment variables
-    console.log('S3 upload with sanitized environment variables:');
+    // Log direct raw environment variables
+    console.log('S3 upload environment check:');
+    console.log('AWS_REGION:', process.env.AWS_REGION || 'NOT SET');
+    console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME || 'NOT SET');
+    console.log('AWS_ACCESS_KEY_ID exists:', !!process.env.AWS_ACCESS_KEY_ID);
+    console.log('AWS_SECRET_ACCESS_KEY_ID exists:', !!process.env.AWS_SECRET_ACCESS_KEY_ID);
+    
+    // Using our constants
+    console.log('Using variables:');
     console.log('REGION:', REGION);
     console.log('BUCKET_NAME:', BUCKET_NAME);
     console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
     console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
     
-    if (!REGION || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY || !BUCKET_NAME) {
-      console.error('Missing AWS environment variables for direct fetch upload');
-      throw new Error('Cannot upload file: AWS environment variables not configured');
+    if (!ACCESS_KEY_ID || !SECRET_ACCESS_KEY) {
+      console.error('Missing AWS credentials for upload');
+      throw new Error('Cannot upload file: AWS credentials not configured');
     }
     
     try {
       console.log('Attempting S3 upload with AWS SDK directly');
       
+      // Normalize the key to prevent double slashes
+      const normalizedKey = normalizeS3Key(key);
+      console.log('Normalized key:', normalizedKey);
+      
       // Import SDK
       const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
       
-      // Create client
-      console.log('Creating S3 client with sanitized credentials');
+      // Create client with direct environment variables
+      console.log('Creating S3 client with explicit credentials');
       const s3Client = new S3Client({
         region: REGION,
         credentials: {
@@ -530,7 +500,7 @@ export async function uploadFile(fileBuffer, key, contentType) {
       console.log('Creating PutObjectCommand');
       const command = new PutObjectCommand({
         Bucket: BUCKET_NAME,
-        Key: key,
+        Key: normalizedKey,
         Body: fileBuffer,
         ContentType: contentType
       });
@@ -541,22 +511,37 @@ export async function uploadFile(fileBuffer, key, contentType) {
       console.log('Upload successful!');
       
       // Generate URL
-      const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`;
+      const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${normalizedKey}`;
       console.log('Generated S3 URL:', url);
       
       return {
         success: true,
-        key,
+        key: normalizedKey,
         url
       };
     } catch (error) {
       console.error('Error in direct S3 upload:', error);
-      throw error;
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        $metadata: error.$metadata
+      });
+      
+      return { 
+        success: false, 
+        key: key,
+        error: String(error)
+      };
     }
   } else {
     // AWS SDK implementation
     try {
       console.log(`Uploading file to S3 with key: ${key}`);
+      
+      // Normalize the key to prevent double slashes
+      const normalizedKey = normalizeS3Key(key);
+      console.log('Normalized key:', normalizedKey);
       
       // Import PutObjectCommand dynamically if needed
       let PutObjectCommand;
@@ -573,7 +558,7 @@ export async function uploadFile(fileBuffer, key, contentType) {
       
       const command = new PutObjectCommand({
         Bucket: BUCKET_NAME,
-        Key: key,
+        Key: normalizedKey,
         Body: fileBuffer,
         ContentType: contentType
       });
@@ -583,8 +568,8 @@ export async function uploadFile(fileBuffer, key, contentType) {
       
       return {
         success: true,
-        key: key,
-        url: `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`
+        key: normalizedKey,
+        url: `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${normalizedKey}`
       };
     } catch (error) {
       console.error('Error uploading file with AWS SDK:', error);
@@ -653,4 +638,4 @@ export async function diagnosticCheck() {
       usingDirectFetch: s3Service.usingDirectFetch
     }
   };
-} 
+}
