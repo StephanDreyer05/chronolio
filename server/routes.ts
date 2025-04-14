@@ -3323,65 +3323,57 @@ export function registerRoutes(app: Express): Server {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
+
+      console.log('=== S3 Upload Debug ===');
+      console.log('Starting file upload process...');
       
+      if (!req.file) {
+        console.error('No file provided in request');
+        return res.status(400).json({ message: 'No file provided' });
+      }
+
       const timelineId = parseInt(req.params.timelineId);
       const file = req.file;
-      
-      if (!file) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'No file uploaded' 
-        });
-      }
-      
-      // Generate a unique S3 key
-      const timestamp = Date.now();
-      const randomString = Math.random().toString(36).substring(2, 15);
-      const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '-');
-      const key = `timelines/${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
-      
+      const key = `timeline-${timelineId}/${file.originalname}`;
+
+      console.log('Upload details:');
+      console.log('- Timeline ID:', timelineId);
+      console.log('- File name:', file.originalname);
+      console.log('- File size:', file.size);
+      console.log('- Key:', key);
+
       // Import the S3 service
       console.log('Importing S3 service for upload...');
       const s3Service = (await import('./services/s3Service.js')).default;
       
       // Output the methods available in s3Service
       console.log('S3 service methods:', Object.keys(s3Service).join(', '));
+      console.log('S3 service implementation type:', s3Service.usingDirectFetch ? 'Direct Fetch' : 'AWS SDK');
+
+      // Upload the file
+      console.log('Starting file upload...');
+      const result = await s3Service.uploadFile(file.buffer, key, file.mimetype);
       
-      // Upload the file to S3
-      console.log('Initiating file upload to S3 with key:', key);
-      const uploadResult = await s3Service.uploadFile(
-        file.buffer,
-        key,
-        file.mimetype
-      );
+      console.log('Upload result:', result);
       
-      console.log('Upload result:', JSON.stringify(uploadResult));
-      
-      if (!uploadResult.success) {
-        console.error('S3 upload failed:', uploadResult.error);
-        // Store in database anyway, but with a special prefix to indicate it's a local file
-        res.json({
-          success: true,
-          key: `memory-storage-placeholder-${sanitizedFileName}`,
-          isLocal: true,
-          message: 'Local storage fallback used due to S3 upload failure',
-          originalError: uploadResult.error
+      if (!result.success) {
+        console.error('Upload failed:', result.error);
+        return res.status(500).json({ 
+          message: 'Failed to upload file',
+          error: result.error
         });
-        return;
       }
-      
-      // Return success with the S3 key
-      res.json({
-        success: true,
-        key: uploadResult.key || key,
-        isLocal: uploadResult.isLocal || false
+
+      console.log('Upload successful, returning response');
+      return res.json({
+        key: result.key,
+        isLocal: result.isLocal || false
       });
     } catch (error) {
-      console.error('Error uploading to S3:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to upload file',
-        error: error instanceof Error ? error.message : String(error)
+      console.error('Error in S3 upload endpoint:', error);
+      return res.status(500).json({ 
+        message: 'Internal server error',
+        error: String(error)
       });
     }
   });

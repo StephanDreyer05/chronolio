@@ -138,7 +138,8 @@ const s3Service = {
 // Initialize the S3 service
 export async function initializeS3Service() {
   try {
-    console.log('Initializing S3 service...');
+    console.log('=== S3 Service Initialization Debug ===');
+    console.log('Checking environment variables...');
     
     // Check required environment variables
     const region = process.env.AWS_REGION;
@@ -146,15 +147,49 @@ export async function initializeS3Service() {
     const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
     const bucketName = process.env.AWS_S3_BUCKET_NAME;
     
+    console.log('Environment variable details:');
+    console.log('AWS_REGION:', {
+      exists: typeof process.env.AWS_REGION !== 'undefined',
+      isEmpty: !process.env.AWS_REGION,
+      value: process.env.AWS_REGION ? '[HIDDEN]' : 'undefined'
+    });
+    console.log('AWS_ACCESS_KEY_ID:', {
+      exists: typeof process.env.AWS_ACCESS_KEY_ID !== 'undefined',
+      isEmpty: !process.env.AWS_ACCESS_KEY_ID,
+      length: process.env.AWS_ACCESS_KEY_ID ? process.env.AWS_ACCESS_KEY_ID.length : 0,
+      prefix: process.env.AWS_ACCESS_KEY_ID ? process.env.AWS_ACCESS_KEY_ID.substring(0, 4) + '...' : ''
+    });
+    console.log('AWS_SECRET_ACCESS_KEY:', {
+      exists: typeof process.env.AWS_SECRET_ACCESS_KEY !== 'undefined',
+      isEmpty: !process.env.AWS_SECRET_ACCESS_KEY,
+      length: process.env.AWS_SECRET_ACCESS_KEY ? process.env.AWS_SECRET_ACCESS_KEY.length : 0
+    });
+    console.log('AWS_S3_BUCKET_NAME:', {
+      exists: typeof process.env.AWS_S3_BUCKET_NAME !== 'undefined',
+      isEmpty: !process.env.AWS_S3_BUCKET_NAME,
+      value: process.env.AWS_S3_BUCKET_NAME || 'undefined'
+    });
+    
+    console.log('Process env keys available:', Object.keys(process.env).filter(key => key.startsWith('AWS_')));
+
     if (!region || !accessKeyId || !secretAccessKey || !bucketName) {
       console.warn('S3 service not configured: Missing AWS environment variables');
-      return false;
+      console.log('Falling back to direct fetch implementation');
+      
+      // Override mock methods with direct fetch implementations
+      Object.keys(directS3Service).forEach(key => {
+        s3Service[key] = directS3Service[key];
+      });
+      
+      console.log('Direct fetch S3 service initialized as fallback');
+      return true;
     }
     
     // First try AWS SDK implementation
     let awsSdkAvailable = false;
     
     try {
+      console.log('Attempting to import AWS SDK modules...');
       // Try importing AWS SDK modules
       const clientModule = await import('@aws-sdk/client-s3');
       const presignerModule = await import('@aws-sdk/s3-request-presigner');
