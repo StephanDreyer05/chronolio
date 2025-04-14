@@ -3351,22 +3351,7 @@ export function registerRoutes(app: Express): Server {
       // Import S3 service
       const s3Service = (await import('./services/s3Service.js')).default;
       
-      // Import S3 service and ensure it's initialized
-      const s3Module = await import('./services/s3Service.js');
-      const s3Service = s3Module.default;
-      
-      // Explicitly call initializeS3Service before attempting upload
-      const initSuccess = await s3Module.initializeS3Service();
-      if (!initSuccess) {
-        console.error('S3 UPLOAD ERROR: S3 Service failed to initialize. Cannot upload.');
-        return res.status(500).json({
-          success: false,
-          message: 'S3 Service not available',
-          error: 'S3 initialization failed. Check server logs.'
-        });
-      }
-      
-      // Now proceed with the upload using the potentially overridden s3Service.uploadFile
+      // Directly upload to S3
       const uploadResult = await s3Service.uploadFile(file.buffer, key, file.mimetype);
       
       console.log('Upload result:', {
