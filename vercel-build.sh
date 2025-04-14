@@ -113,9 +113,9 @@ else
  * This script replaces @db import aliases with their relative paths to fix import issues in Vercel
  */
 
-import fs from 'fs';
-import path from 'path';
-import { execSync } from 'child_process';
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
 
 // Find all TypeScript files that include @db imports
 try {

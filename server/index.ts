@@ -9,8 +9,6 @@ import { sql } from "drizzle-orm";
 import cors from "cors";
 import { initializePaymentService, handleWebhookEvent } from "./services/payment.js";
 import path from "path";
-import dotenv from 'dotenv';
-import { initializeEmailService } from './services/email.js';
 
 const app = express();
 app.use(cors());
@@ -74,57 +72,6 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   }
 });
 
-// Add this at the start of the file, before any other code
-// Log all available environment variables for debugging
-console.log('Server starting - Environment check');
-console.log('Available environment variables:', Object.keys(process.env));
-console.log('AWS environment variables:', {
-  AWS_REGION: process.env.AWS_REGION ? 'Set' : 'Not set',
-  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? 'Set' : 'Not set',
-  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ? 'Set' : 'Not set',
-  AWS_S3_BUCKET_NAME: process.env.AWS_S3_BUCKET_NAME ? 'Set' : 'Not set',
-});
-
-// Initialize services
-async function initializeServices() {
-  console.log('Initializing app services...');
-  
-  // Initialize email service
-  const emailResult = initializeEmailService();
-  console.log('Email service initialization:', emailResult ? 'Success' : 'Failed');
-  
-  // Initialize payment service
-  const paymentResult = await initializePaymentService();
-  console.log('Payment service initialization:', paymentResult ? 'Success' : 'Failed');
-  
-  // Initialize S3 service
-  log('Initializing services...');
-  try {
-    // Try to initialize S3 service
-    const { initializeS3Service } = await import('./services/s3Service.js');
-    const s3Initialized = await initializeS3Service();
-    
-    if (!s3Initialized) {
-      log('AWS SDK initialization failed, falling back to direct S3 implementation');
-      // Import and use our direct S3 service that doesn't depend on AWS SDK
-      const s3DirectService = (await import('./services/s3DirectService.js')).default;
-      
-      // Replace the global s3Service with our direct implementation
-      const s3ServiceModule = await import('./services/s3Service.js');
-      Object.keys(s3DirectService).forEach(key => {
-        s3ServiceModule.default[key] = s3DirectService[key];
-      });
-      
-      log('S3 direct service initialized as fallback');
-    } else {
-      log('S3 service initialized successfully with AWS SDK');
-    }
-  } catch (error) {
-    console.error('Error initializing services:', error);
-    log('Services initialization failed, continuing with fallbacks');
-  }
-}
-
 // Verify database connection before proceeding
 async function startServer() {
   try {
@@ -145,9 +92,8 @@ async function startServer() {
     
     // 4. Payment Service Setup
     log('Step 4/7: Setting up payment service...');
-    // Initialize all services including email and S3
-    await initializeServices();
-    log('Service initialization completed');
+    const paymentServiceInitialized = await initializePaymentService();
+    log(`Payment service ${paymentServiceInitialized ? 'initialized successfully' : 'initialization failed'}`);
     
     // 5. Subscription Router Setup
     log('Step 5/7: Setting up subscription router...');
@@ -197,27 +143,6 @@ async function startServer() {
         res.status(200).json({ 
           success: false, 
           message: 'Webhook received but processing failed with error. Event has been logged.' 
-        });
-      }
-    });
-    
-    // Add S3 test endpoint
-    app.get('/api/s3/test', async (req, res) => {
-      try {
-        // Import the S3 service
-        const s3Service = (await import('./services/s3Service.js')).default;
-        
-        // Test the S3 connection
-        const testResult = await s3Service.testConnection();
-        
-        // Return the test result
-        res.json(testResult);
-      } catch (error) {
-        console.error('Error testing S3 connection:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to test S3 connection',
-          error: error.message
         });
       }
     });
