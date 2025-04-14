@@ -74,6 +74,17 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   }
 });
 
+// Add this at the start of the file, before any other code
+// Log all available environment variables for debugging
+console.log('Server starting - Environment check');
+console.log('Available environment variables:', Object.keys(process.env));
+console.log('AWS environment variables:', {
+  AWS_REGION: process.env.AWS_REGION ? 'Set' : 'Not set',
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? 'Set' : 'Not set',
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ? 'Set' : 'Not set',
+  AWS_S3_BUCKET_NAME: process.env.AWS_S3_BUCKET_NAME ? 'Set' : 'Not set',
+});
+
 // Initialize services
 async function initializeServices() {
   console.log('Initializing app services...');

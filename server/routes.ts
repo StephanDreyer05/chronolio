@@ -1,11 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "../db/index.js";
-import { timelines, timelineCategories, timelineEvents, templates, userSettings, timelineImages, vendorTypes, vendors, timelineVendors, timelineEventVendors, publicTimelineShares, eventTypes, trialUsers, type SelectUser } from "../db/schema.js";
+import { timelines, timelineCategories, timelineEvents, templates, userSettings, timelineImages, vendorTypes, vendors, timelineVendors, timelineEventVendors, publicTimelineShares, trialUsers, type SelectUser } from "../db/schema.js";
 import { eq, and, inArray, or } from "drizzle-orm";
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { sql } from 'drizzle-orm';
 import express from 'express';
 import crypto from 'crypto';
@@ -3469,6 +3467,49 @@ export function registerRoutes(app: Express): Server {
         <text x="50%" y="50%" font-family="Arial" font-size="20" text-anchor="middle" fill="#721c24">Server Error</text>
       </svg>`;
       res.send(errorSvg);
+    }
+  });
+
+  // Add a diagnostic endpoint for AWS connectivity
+  app.get('/api/aws-check', async (req, res) => {
+    try {
+      // Log environment variable availability
+      console.log('AWS environment check from endpoint:');
+      console.log('AWS_REGION:', process.env.AWS_REGION ? 'Available' : 'Not available');
+      console.log('AWS_ACCESS_KEY_ID:', process.env.AWS_ACCESS_KEY_ID ? 'Available' : 'Not available');
+      console.log('AWS_SECRET_ACCESS_KEY:', process.env.AWS_SECRET_ACCESS_KEY ? 'Available' : 'Not available');
+      console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME ? 'Available' : 'Not available');
+      
+      // Import the S3 service
+      const s3Service = (await import('./services/s3Service.js')).default;
+      
+      // Run connection test
+      const testResult = await s3Service.testConnection();
+      
+      // Return diagnostic information
+      return res.json({
+        environmentCheck: {
+          hasRegion: Boolean(process.env.AWS_REGION),
+          hasAccessKey: Boolean(process.env.AWS_ACCESS_KEY_ID),
+          hasSecretKey: Boolean(process.env.AWS_SECRET_ACCESS_KEY),
+          hasBucketName: Boolean(process.env.AWS_S3_BUCKET_NAME)
+        },
+        serviceStatus: {
+          usingDirectFetch: s3Service.usingDirectFetch || false,
+          connectionTestResult: testResult
+        },
+        serverInfo: {
+          nodeEnv: process.env.NODE_ENV,
+          vercelEnv: process.env.VERCEL_ENV,
+          region: process.env.VERCEL_REGION
+        }
+      });
+    } catch (error) {
+      console.error('Error in AWS check endpoint:', error);
+      return res.status(500).json({
+        error: String(error),
+        message: 'Failed to check AWS configuration'
+      });
     }
   });
 

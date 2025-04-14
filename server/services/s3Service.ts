@@ -145,26 +145,45 @@ export async function initializeS3Service(): Promise<boolean> {
     console.log('=== S3 Service Initialization Debug ===');
     console.log('Checking environment variables...');
     
-    // Check required environment variables
+    // Print all environment variables starting with AWS for debugging
+    console.log('All AWS environment variables:', 
+      Object.keys(process.env).filter(key => key.startsWith('AWS_')));
+    
+    // Access environment variables directly
     const region = process.env.AWS_REGION;
     const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
     const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
     const bucketName = process.env.AWS_S3_BUCKET_NAME;
     
-    console.log('Environment variable details:');
-    console.log('AWS_REGION:', {
-      exists: typeof process.env.AWS_REGION !== 'undefined',
-      isEmpty: !process.env.AWS_REGION,
-      value: process.env.AWS_REGION ? '[HIDDEN]' : 'undefined'
+    // Try alternate methods of accessing env vars if they're missing
+    const envFile = {
+      region: process.env.AWS_REGION || process.env.VERCEL_AWS_REGION,
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID || process.env.VERCEL_AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || process.env.VERCEL_AWS_SECRET_ACCESS_KEY,
+      bucketName: process.env.AWS_S3_BUCKET_NAME || process.env.VERCEL_AWS_S3_BUCKET_NAME
+    };
+    
+    console.log('Environment variable check result:', {
+      hasRegion: Boolean(region || envFile.region),
+      hasAccessKey: Boolean(accessKeyId || envFile.accessKeyId),
+      hasSecretKey: Boolean(secretAccessKey || envFile.secretAccessKey),
+      hasBucketName: Boolean(bucketName || envFile.bucketName)
     });
     
-    // ... rest of the environment variable logging ...
-
-    if (!region || !accessKeyId || !secretAccessKey || !bucketName) {
+    // Use the variables that are available, preferring the standard ones
+    const finalConfig = {
+      region: region || envFile.region,
+      accessKeyId: accessKeyId || envFile.accessKeyId,
+      secretAccessKey: secretAccessKey || envFile.secretAccessKey,
+      bucketName: bucketName || envFile.bucketName
+    };
+    
+    if (!finalConfig.region || !finalConfig.accessKeyId || 
+        !finalConfig.secretAccessKey || !finalConfig.bucketName) {
       console.warn('S3 service not configured: Missing AWS environment variables');
       console.log('Falling back to direct fetch implementation');
       
-      // Override mock methods with direct fetch implementations
+      // Override methods with direct fetch implementations
       Object.assign(s3Service, directS3Service);
       
       console.log('Direct fetch S3 service initialized as fallback');
@@ -177,10 +196,10 @@ export async function initializeS3Service(): Promise<boolean> {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
       
       s3Client = new S3Client({
-        region,
+        region: finalConfig.region,
         credentials: {
-          accessKeyId,
-          secretAccessKey
+          accessKeyId: finalConfig.accessKeyId,
+          secretAccessKey: finalConfig.secretAccessKey
         }
       });
       
