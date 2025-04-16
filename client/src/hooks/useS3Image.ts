@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getS3SignedUrl, extractS3KeyFromUrl } from '../lib/s3Service';
+import placeholderImage from '../assets/images/placeholder.svg';
 
 interface UseS3ImageOptions {
   expirationSeconds?: number;
@@ -26,10 +27,13 @@ export function useS3Image(imageUrl: string | null | undefined, options?: UseS3I
       return;
     }
     
+    console.log('useS3Image processing:', imageUrl);
+    
     // Check if the URL is an S3 key (not a memory placeholder or a data URL)
     if (imageUrl.startsWith('memory-storage-placeholder-') || 
         imageUrl.startsWith('http') || 
         imageUrl.startsWith('data:')) {
+      console.log('Direct URL detected, using as-is:', imageUrl);
       // Just use the original URL
       setSignedUrl(imageUrl);
       return;
@@ -37,8 +41,9 @@ export function useS3Image(imageUrl: string | null | undefined, options?: UseS3I
     
     // Handle fallback keys created by our fallback S3 service
     if (imageUrl.startsWith('fallback-s3-key-')) {
-      // Generate a placeholder image
-      setSignedUrl('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiPkltYWdlIFVuYXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==');
+      console.log('Fallback key detected, using placeholder image');
+      // Use placeholder image from assets
+      setSignedUrl(placeholderImage);
       return;
     }
     
@@ -46,19 +51,36 @@ export function useS3Image(imageUrl: string | null | undefined, options?: UseS3I
     const key = extractS3KeyFromUrl(imageUrl);
     
     if (!key) {
+      console.log('No key detected, using original URL:', imageUrl);
       setSignedUrl(imageUrl);
       return;
     }
     
+    console.log('S3 key extracted:', key);
+    
     const fetchSignedUrl = async () => {
       try {
         setLoading(true);
-        const url = await getS3SignedUrl(key, options?.expirationSeconds);
-        setSignedUrl(url);
+        
+        // Log the key for debugging
+        console.log(`Getting signed URL for image key: ${key}`);
+        
+        // Try to load using the client's getS3SignedUrl function
+        const url = await getS3SignedUrl(key);
+        
+        // If we got a URL back, use it
+        if (url) {
+          console.log(`Resolved image URL (success):`, url);
+          setSignedUrl(url);
+        } else {
+          console.error(`Failed to get signed URL: result was empty or null`);
+          throw new Error('Failed to get signed URL');
+        }
       } catch (err) {
+        console.error(`Error getting signed URL for key "${key}":`, err);
         setError(err instanceof Error ? err : new Error('Failed to get signed URL'));
-        // Fallback to a placeholder image
-        setSignedUrl('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiPkVycm9yIExvYWRpbmcgSW1hZ2U8L3RleHQ+PC9zdmc+');
+        // Use placeholder image from assets
+        setSignedUrl(placeholderImage);
       } finally {
         setLoading(false);
       }

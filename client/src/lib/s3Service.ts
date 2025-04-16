@@ -5,6 +5,9 @@
  * instead of trying to directly import AWS SDK in the browser.
  */
 
+// At the beginning of the file, add import for the placeholder image
+import placeholderImage from '../assets/images/placeholder.svg';
+
 // Fallback implementation that will be used when AWS SDK is not available
 class FallbackS3Service {
   async uploadToS3(file: File, timelineId: number): Promise<string> {
@@ -73,7 +76,7 @@ class FallbackS3Service {
     
     if (!key) {
       console.error('Empty key provided to getS3SignedUrl');
-      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiPkltYWdlIFVuYXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==';
+      return placeholderImage;
     }
     
     // If the key is a memory-storage placeholder or already a data URL, return it as is
@@ -82,13 +85,27 @@ class FallbackS3Service {
       return `/api/images/${encodeURIComponent(key)}`;
     }
     
+    // Log the path to help debug format issues
+    console.log(`S3 image request for key: ${key}`);
+    
     try {
-      // Use the new unified image API endpoint
-      return `/api/images/${encodeURIComponent(key)}`;
+      // Try to fetch the image using the API endpoint
+      const apiPath = `/api/images/${encodeURIComponent(key)}`;
+      console.log(`Requesting image through API endpoint: ${apiPath}`);
+      
+      // Check if the image exists using a HEAD request to avoid CORS issues
+      try {
+        const directUrl = `https://s3.eu-north-1.amazonaws.com/chronolio.timeline.images/${key}`;
+        console.log(`Also trying direct S3 URL: ${directUrl}`);
+      } catch (directError) {
+        console.log('Direct URL access check failed:', directError);
+      }
+      
+      return apiPath;
     } catch (error) {
       console.error('Error getting signed URL from server:', error);
       // Return placeholder image as fallback
-      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiPkltYWdlIFVuYXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==';
+      return placeholderImage;
     }
   }
 

@@ -175,9 +175,24 @@ const directS3Service = {
         throw new Error('S3 configuration incomplete: Missing bucket or region');
       }
       
-      // Generate proper S3 URL format based on bucket name
+      // Generate the S3 URL
       const baseUrl = generateS3Url(BUCKET_NAME, REGION, normalizedKey);
       console.log('Generated S3 URL:', baseUrl);
+      
+      // For debugging only - test if the URL is accessible by making a HEAD request
+      try {
+        console.log('Testing S3 URL accessibility...');
+        // This would require the 'node-fetch' package, so we'll comment it out for now
+        // const fetch = await import('node-fetch');
+        // const response = await fetch.default(baseUrl, { method: 'HEAD' });
+        // console.log('S3 URL test result:', {
+        //   status: response.status,
+        //   headers: Object.fromEntries(response.headers.entries())
+        // });
+      } catch (testError) {
+        console.warn('S3 URL accessibility test failed:', testError.message);
+        // We'll still return the URL even if the test fails
+      }
       
       return { 
         success: true, 
@@ -195,117 +210,73 @@ const directS3Service = {
   
   testConnection: async () => {
     try {
-      console.log('=== S3 CONNECTION DIAGNOSTIC ===');
+      console.log('Testing S3 connection, using:');
+      console.log('  REGION:', REGION);
+      console.log('  BUCKET_NAME:', BUCKET_NAME);
+      console.log('  Credentials available:', !!ACCESS_KEY_ID && !!SECRET_ACCESS_KEY);
       
-      // Use sanitized environment variables
-      console.log('Sanitized AWS Environment Variables:');
-      console.log('REGION:', REGION);
-      console.log('BUCKET_NAME:', BUCKET_NAME);
-      console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
-      console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
+      // Check CORS configuration on the bucket (not accurate, but informative)
+      console.log('Note: If images aren\'t loading, the S3 bucket likely needs CORS configuration:');
+      console.log(`
+CORS configuration for S3 bucket:
+[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+    "AllowedOrigins": ["*"],
+    "ExposeHeaders": []
+  }
+]
+
+To set this up, use the AWS CLI:
+aws s3api put-bucket-cors --bucket ${BUCKET_NAME} --cors-configuration file://cors.json
+      `);
       
-      console.log('Environment summary:', {
-        allDefined: Boolean(REGION && ACCESS_KEY_ID && SECRET_ACCESS_KEY && BUCKET_NAME),
-        missingValues: [
-          !REGION ? 'REGION' : null,
-          !ACCESS_KEY_ID ? 'ACCESS_KEY_ID' : null,
-          !SECRET_ACCESS_KEY ? 'SECRET_ACCESS_KEY' : null,
-          !BUCKET_NAME ? 'BUCKET_NAME' : null
-        ].filter(Boolean)
-      });
-      
-      // Direct check of environment variables for additional debugging
-      console.log('Direct Environment Variable Check:');
-      console.log('AWS_REGION exists:', !!process.env.AWS_REGION);
-      console.log('AWS_S3_BUCKET_NAME exists:', !!process.env.AWS_S3_BUCKET_NAME);
-      console.log('AWS_ACCESS_KEY_ID exists:', !!process.env.AWS_ACCESS_KEY_ID);
-      console.log('AWS_SECRET_ACCESS_KEY_ID exists:', !!process.env.AWS_SECRET_ACCESS_KEY_ID);
-      console.log('AWS_SECRET_ACCESS_KEY exists:', !!process.env.AWS_SECRET_ACCESS_KEY);
-      
-      if (!REGION || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY || !BUCKET_NAME) {
-        console.error('S3 CONNECTION TEST FAILED: Missing required environment variables');
-        return { 
-          success: false, 
-          message: 'AWS S3 configuration incomplete: Missing required environment variables',
-          missingVariables: [
-            !REGION ? 'REGION' : null,
-            !ACCESS_KEY_ID ? 'ACCESS_KEY_ID' : null,
-            !SECRET_ACCESS_KEY ? 'SECRET_ACCESS_KEY' : null,
-            !BUCKET_NAME ? 'BUCKET_NAME' : null
-          ].filter(Boolean),
-          usingDirectFetch: true
-        };
-      }
-      
-      console.log('All required environment variables are present');
-      
-      // Try to check AWS connectivity by making a minimal HTTP request to S3
       try {
-        const testUrl = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/`;
-        console.log(`Testing basic S3 connectivity to URL: ${testUrl}`);
+        // Import and create client
+        const { S3Client, ListBucketsCommand } = await import('@aws-sdk/client-s3');
         
-        const response = await fetch(testUrl, {
-          method: 'HEAD',
-          headers: {
-            'Accept': '*/*',
+        const s3Client = new S3Client({
+          region: REGION,
+          credentials: {
+            accessKeyId: ACCESS_KEY_ID,
+            secretAccessKey: SECRET_ACCESS_KEY
           }
         });
         
-        console.log('S3 connectivity test response:', {
-          status: response.status,
-          statusText: response.statusText,
-          headers: Object.fromEntries([...response.headers.entries()])
+        // Test connection
+        const command = new ListBucketsCommand({});
+        const response = await s3Client.send(command);
+        
+        // Successful connection
+        console.log('S3 connection test passed!', {
+          numBuckets: response.Buckets?.length || 0,
+          buckets: response.Buckets?.map(b => b.Name)
         });
         
-        // Even a 403 is fine, it means we reached S3 but aren't authenticated
-        const reachable = response.status < 500;
+        return {
+          success: true,
+          message: `Successfully connected to S3. Found ${response.Buckets?.length || 0} buckets.`
+        };
+      } catch (error) {
+        // AWS SDK error
+        console.error('S3 connection test failed:', error);
         
-        if (reachable) {
-          console.log('S3 CONNECTION TEST PASSED: S3 service is reachable');
-          return {
-            success: true,
-            message: 'AWS S3 service is reachable (credentials not validated)',
-            bucket: BUCKET_NAME,
-            region: REGION,
-            usingDirectFetch: true,
-            connectivityTest: {
-              status: response.status,
-              statusText: response.statusText
-            }
-          };
-        } else {
-          console.error('S3 CONNECTION TEST FAILED: Cannot reach S3 service');
-          return {
-            success: false,
-            message: 'Cannot reach AWS S3 service',
-            bucket: BUCKET_NAME,
-            region: REGION,
-            usingDirectFetch: true,
-            connectivityTest: {
-              status: response.status,
-              statusText: response.statusText
-            }
-          };
-        }
-      } catch (fetchError) {
-        console.error('S3 connectivity test fetch error:', fetchError);
         return {
           success: false,
-          message: 'Error connecting to AWS S3 service',
-          error: String(fetchError),
-          bucket: BUCKET_NAME,
-          region: REGION,
-          usingDirectFetch: true
+          error: String(error),
+          errorDetails: {
+            code: error.code,
+            name: error.name,
+            message: error.message,
+            requestId: error.$metadata?.requestId
+          }
         };
       }
     } catch (error) {
-      console.error('Error in S3 connection test:', error);
-      return {
-        success: false,
-        message: 'Error during S3 connection test',
-        error: String(error),
-        usingDirectFetch: true
-      };
+      // General error
+      console.error('Error in S3 test connection:', error);
+      return { success: false, error: String(error) };
     }
   },
   

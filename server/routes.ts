@@ -3447,7 +3447,30 @@ export function registerRoutes(app: Express): Server {
       
       // For S3 images, get the URL and redirect
       const s3Service = (await import('./services/s3Service.js')).default;
-      const urlResult = await s3Service.generateSignedUrl(filename);
+      
+      // Process the key to handle both old and new formats
+      let processedKey = filename;
+      
+      // Check if this is using the old format (timelines/ID/images/...)
+      if (filename.startsWith('timelines/')) {
+        // Extract the timeline ID from the path
+        const parts = filename.split('/');
+        if (parts.length >= 3 && parts[0] === 'timelines') {
+          const timelineId = parts[1];
+          // If we're authenticated, get the user ID from the session
+          const userId = req.isAuthenticated() ? req.user!.id : 1; // Default to user 1 if not authenticated
+          
+          // Transform to the new format: user-{userId}/timeline-{timelineId}/images/filename
+          // Keep all parts after "images/"
+          const imagePath = parts.slice(3).join('/');
+          processedKey = `user-${userId}/timeline-${timelineId}/images/${imagePath}`;
+          
+          console.log(`Converting old path format to new: ${filename} → ${processedKey}`);
+        }
+      }
+      
+      // Proceed with the processed key
+      const urlResult = await s3Service.generateSignedUrl(processedKey);
       
       if (urlResult.success && urlResult.url) {
         console.log('Redirecting to S3 URL:', urlResult.url);
