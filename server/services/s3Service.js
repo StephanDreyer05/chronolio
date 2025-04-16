@@ -69,6 +69,18 @@ function normalizeS3Key(key) {
   return key;
 }
 
+// Helper function to generate the proper S3 URL format based on bucket name
+function generateS3Url(bucket, region, key) {
+  // If bucket name contains dots, we need to use path-style URL
+  // instead of virtual-hosted style to avoid SSL certificate issues
+  if (bucket.includes('.')) {
+    return `https://s3.${region}.amazonaws.com/${bucket}/${key}`;
+  } else {
+    // Standard virtual-hosted style URL
+    return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+  }
+}
+
 // Direct fallback implementation using fetch API (no AWS SDK required)
 const directS3Service = {
   uploadFile: async (fileBuffer, key, contentType) => {
@@ -128,8 +140,8 @@ const directS3Service = {
       
       console.log('Upload successful!');
       
-      // Construct the S3 URL properly with normalized key
-      const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${normalizedKey}`;
+      // Generate URL
+      const url = generateS3Url(BUCKET_NAME, REGION, normalizedKey);
       console.log('Generated S3 URL:', url);
       
       return { 
@@ -163,10 +175,9 @@ const directS3Service = {
         throw new Error('S3 configuration incomplete: Missing bucket or region');
       }
       
-      // Implementation that returns a properly constructed S3 URL without signing
-      // (not a real signed URL, but at least points to the correct S3 location)
-      const baseUrl = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${normalizedKey}`;
-      console.log('Generated unsigned S3 URL:', baseUrl);
+      // Generate proper S3 URL format based on bucket name
+      const baseUrl = generateS3Url(BUCKET_NAME, REGION, normalizedKey);
+      console.log('Generated S3 URL:', baseUrl);
       
       return { 
         success: true, 
@@ -397,7 +408,7 @@ export async function initializeS3Service() {
             await s3Client.send(command);
             console.log('File uploaded successfully using AWS SDK');
             
-            const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${normalizedKey}`;
+            const url = generateS3Url(BUCKET_NAME, REGION, normalizedKey);
             return {
               success: true,
               key: normalizedKey,
@@ -530,7 +541,7 @@ export async function uploadFile(fileBuffer, key, contentType) {
       console.log('Upload successful!');
       
       // Generate URL
-      const url = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${normalizedKey}`;
+      const url = generateS3Url(BUCKET_NAME, REGION, normalizedKey);
       console.log('Generated S3 URL:', url);
       
       return {
@@ -585,10 +596,13 @@ export async function uploadFile(fileBuffer, key, contentType) {
       await s3Client.send(command);
       console.log('File uploaded successfully using AWS SDK');
       
+      const url = generateS3Url(BUCKET_NAME, REGION, normalizedKey);
+      console.log('Generated S3 URL:', url);
+      
       return {
         success: true,
         key: normalizedKey,
-        url: `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${normalizedKey}`
+        url: url
       };
     } catch (error) {
       console.error('Error uploading file with AWS SDK:', error);

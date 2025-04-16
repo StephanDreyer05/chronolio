@@ -3337,9 +3337,11 @@ export function registerRoutes(app: Express): Server {
       const timestamp = Date.now();
       const randomString = Math.random().toString(36).substring(2, 8);
       const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '-');
-      const key = `timeline-${timelineId}/${timestamp}-${randomString}-${sanitizedFileName}`;
+      const userId = req.user!.id;
+      const key = `user-${userId}/timeline-${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
 
       console.log('Upload details:', {
+        userId,
         timelineId,
         fileName: file.originalname,
         fileSize: file.size,
@@ -3443,11 +3445,12 @@ export function registerRoutes(app: Express): Server {
         return res.send(placeholderSvg);
       }
       
-      // For S3 images, redirect to the signed URL
+      // For S3 images, get the URL and redirect
       const s3Service = (await import('./services/s3Service.js')).default;
       const urlResult = await s3Service.generateSignedUrl(filename);
       
       if (urlResult.success && urlResult.url) {
+        console.log('Redirecting to S3 URL:', urlResult.url);
         return res.redirect(urlResult.url);
       } else if (urlResult.mockUrl) {
         // If we got a mock URL (base64 image), send it directly

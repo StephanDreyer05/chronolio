@@ -39,7 +39,8 @@ class FallbackS3Service {
       const timestamp = Date.now();
       const randomString = Math.random().toString(36).substring(2, 15);
       const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '-');
-      return `fallback-s3-key-${timelineId}-${timestamp}-${randomString}-${sanitizedFileName}`;
+      // Use a generic userId (1) for fallback keys
+      return `fallback-s3-key-1/timeline-${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
     }
   }
 
