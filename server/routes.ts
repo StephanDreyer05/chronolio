@@ -3448,48 +3448,20 @@ export function registerRoutes(app: Express): Server {
       // For S3 images, get the URL and redirect
       const s3Service = (await import('./services/s3Service.js')).default;
       
-      // Process the key to handle both old and new formats
-      let processedKey = filename;
+      // Use the key directly without any format conversion
+      console.log(`Attempting to serve image with standardized key: ${filename}`);
       
-      // Check if this is using the old format (timelines/ID/images/...)
-      if (filename.startsWith('timelines/')) {
-        // Extract the timeline ID from the path
-        const parts = filename.split('/');
-        if (parts.length >= 3 && parts[0] === 'timelines') {
-          const timelineId = parts[1];
-          // If we're authenticated, get the user ID from the session
-          const userId = req.isAuthenticated() ? req.user!.id : 1; // Default to user 1 if not authenticated
-          
-          // Transform to the new format: user-{userId}/timeline-{timelineId}/images/filename
-          // Keep all parts after "images/"
-          const imagePath = parts.slice(3).join('/');
-          processedKey = `user-${userId}/timeline-${timelineId}/images/${imagePath}`;
-          
-          console.log(`Converting old path format to new: ${filename} → ${processedKey}`);
-        }
-      }
+      // Generate signed URL using the original key
+      const urlResult = await s3Service.generateSignedUrl(filename);
       
-      // Proceed with the processed key
-      const urlResult = await s3Service.generateSignedUrl(processedKey);
-      
+      // If we got a valid URL, redirect to it
       if (urlResult.success && urlResult.url) {
-        console.log('Redirecting to S3 URL:', urlResult.url);
+        console.log('Successfully generated URL, redirecting to:', urlResult.url);
         return res.redirect(urlResult.url);
-      } else if (urlResult.mockUrl) {
-        // If we got a mock URL (base64 image), send it directly
-        // Extract the content type and data from the data URL
-        const matches = urlResult.mockUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-          const contentType = matches[1];
-          const base64Data = matches[2];
-          const buffer = Buffer.from(base64Data, 'base64');
-          
-          res.set('Content-Type', contentType);
-          return res.send(buffer);
-        }
       }
       
-      // If we couldn't get a URL, send a placeholder
+      // If we couldn't get a URL, show a placeholder
+      console.log('Could not generate URL, showing placeholder');
       res.set('Content-Type', 'image/svg+xml');
       const errorSvg = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
         <rect width="200" height="200" fill="#f8d7da"/>

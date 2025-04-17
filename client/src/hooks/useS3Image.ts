@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getS3SignedUrl, extractS3KeyFromUrl } from '../lib/s3Service';
-import placeholderImage from '../assets/images/placeholder.svg';
+// Use a direct path instead of an import
+const placeholderImage = '/assets/placeholder.svg';
 
 interface UseS3ImageOptions {
   expirationSeconds?: number;

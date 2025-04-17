@@ -5,8 +5,8 @@
  * instead of trying to directly import AWS SDK in the browser.
  */
 
-// At the beginning of the file, add import for the placeholder image
-import placeholderImage from '../assets/images/placeholder.svg';
+// Use a direct path instead
+const placeholderImage = '/assets/placeholder.svg';
 
 // Fallback implementation that will be used when AWS SDK is not available
 class FallbackS3Service {

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useS3Image } from '../hooks/useS3Image';
-import placeholderImage from '../assets/images/placeholder.svg';
+// Use a direct path instead of an import
+const placeholderImage = '/assets/placeholder.svg';
 
 interface S3ImageProps {
   imageUrl: string;

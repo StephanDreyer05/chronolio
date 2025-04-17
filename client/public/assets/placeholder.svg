@@ -1,8 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?><!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
 <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
   <rect width="200" height="200" fill="#f0f0f0"/>
   <rect x="70" y="60" width="60" height="40" fill="#cccccc"/>
   <polyline points="70,100 100,120 130,100" fill="#cccccc" stroke="#cccccc" stroke-width="1"/>
   <circle cx="85" cy="75" r="5" fill="#999999"/>
   <text x="50%" y="160" font-family="Arial" font-size="14" text-anchor="middle" fill="#999999">Image Unavailable</text>
-</svg>
+</svg> 

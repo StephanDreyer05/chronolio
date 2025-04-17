@@ -444,6 +444,8 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
     );
   }
 
+  const debugMode = true; // Set to false for production
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -561,6 +563,19 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {debugMode && images && images.length > 0 && (
+        <div className="mt-8 p-4 border border-gray-200 dark:border-gray-700 rounded-md">
+          <h3 className="text-sm font-medium mb-2">Debug Image Paths:</h3>
+          <div className="space-y-2 text-xs font-mono">
+            {images.map((image, idx) => (
+              <div key={idx} className="p-2 bg-gray-100 dark:bg-gray-800 rounded">
+                {image.imageUrl}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
