@@ -163,10 +163,18 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
       console.log('Sending reorder request with IDs:', imageIds);
       const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
         method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({ imageIds }),
       });
       if (!response.ok) {
-        const error = await response.json();
+        let error;
+        try {
+          error = await response.json();
+        } catch (e) {
+          error = { message: await response.text() };
+        }
         console.error('Reorder response error:', response.status, error);
         throw new Error(error.message || 'Failed to reorder images');
       }
@@ -174,7 +182,7 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
     },
     onSuccess: (newImages) => {
       setImages(newImages);
-      queryClient.invalidateQueries({ queryKey: ['/api/timelines', timelineId, 'images'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/timelines/${timelineId}/images`] });
       toast({
         title: "Success",
         description: "Images reordered successfully",
@@ -203,7 +211,7 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
     newImages.splice(hoverIndex, 0, draggedImage);
     setImages(newImages);
     
-    // Validate and convert image IDs to numbers, ensuring no NaN values
+    // Extract just the image IDs for the reorder request
     const imageIds = newImages.map(img => {
       const id = Number(img.id);
       if (isNaN(id) || !Number.isInteger(id) || id <= 0) {
@@ -211,10 +219,11 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
         return null;
       }
       return id;
-    }).filter(id => id !== null) as number[];
+    }).filter(Boolean) as number[];
     
     // Only send the request if all IDs are valid
     if (imageIds.length === newImages.length) {
+      console.log('Sending imageIds to reorderMutation:', imageIds);
       reorderMutation.mutate(imageIds);
     } else {
       console.error('Detected invalid image IDs, aborting reorder request');

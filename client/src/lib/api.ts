@@ -15,50 +15,73 @@ export interface PublicShareResponse {
 }
 
 /**
+ * Get CSRF token from meta tag or cookie
+ */
+function getCsrfToken(): string | null {
+  // Try to get from meta tag first
+  const metaTag = document.querySelector('meta[name="csrf-token"]');
+  if (metaTag && metaTag.getAttribute('content')) {
+    return metaTag.getAttribute('content');
+  }
+  
+  // Fall back to cookies if needed
+  const csrfCookie = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('XSRF-TOKEN='));
+    
+  if (csrfCookie) {
+    return decodeURIComponent(csrfCookie.split('=')[1]);
+  }
+  
+  return null;
+}
+
+/**
  * Makes an authenticated request to the API
  * @param url The URL to fetch
  * @param options Additional fetch options
  * @returns The fetch response
  */
-export async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  // Create a new Headers object from the existing headers
+export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+  // Ensure we have headers object
   const headers = new Headers(options.headers || {});
   
-  // Only set Content-Type for non-FormData requests
-  if (!options.body || !(options.body instanceof FormData)) {
-    if (!headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-  } else {
-    // For FormData, let the browser set the content type and boundary
-    headers.delete('Content-Type');
+  // Always set content-type to JSON for all requests except those with FormData body
+  if (!options.body || typeof options.body === 'string') {
+    headers.set('Content-Type', 'application/json');
   }
   
-  // Ensure credentials are included
+  // Add CSRF token if available
+  const csrfToken = getCsrfToken();
+  if (csrfToken) {
+    headers.set('X-CSRF-Token', csrfToken);
+  }
+
+  // Merge our headers with original options
   const fetchOptions: RequestInit = {
     ...options,
-    credentials: 'include',
-    headers
+    headers,
+    credentials: 'include', // Always include credentials
   };
-
+  
+  console.log(`API Request: ${url}`, {
+    method: options.method || 'GET',
+    headers: Object.fromEntries(headers.entries()),
+    bodyType: options.body ? typeof options.body : 'none',
+    bodyPreview: options.body && typeof options.body === 'string' ? 
+      options.body.substring(0, 100) + (options.body.length > 100 ? '...' : '') : 
+      null
+  });
+  
   try {
-    console.log(`Making authenticated request to ${url} with method ${options.method || 'GET'}`);
-    
-    if (options.body instanceof FormData) {
-      console.log(`Request includes FormData with ${Array.from(options.body.entries()).length} fields`);
-    } else if (typeof options.body === 'string') {
-      console.log(`Request body starts with: ${options.body.substring(0, 100)}${options.body.length > 100 ? '...' : ''}`);
-    }
-    
     const response = await fetch(url, fetchOptions);
     
-    // Log response information
-    console.log(`Response status: ${response.status} ${response.statusText}`);
-    
-    // Handle authentication errors
+    // Special handling for 401 - redirect to login
     if (response.status === 401) {
-      console.error('Authentication error: User not logged in');
-      throw new Error('You must be logged in to perform this action');
+      console.warn('Authentication required - redirecting to login');
+      window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+      // Return a never-resolving promise so the calling code doesn't continue
+      return new Promise(() => {});
     }
     
     return response;

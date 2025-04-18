@@ -1314,18 +1314,48 @@ export function registerRoutes(app: Express): Server {
 
   // Add endpoint for reordering images
   app.put('/api/timelines/:timelineId/images/reorder', async (req, res) => {
+    console.log('========== REORDER REQUEST STARTED ==========');
+    console.log('Request params:', req.params);
+    console.log('Request body (raw):', req.body);
+    console.log('Request body type:', typeof req.body);
+    console.log('Request headers:', req.headers);
+    
     try {
       if (!req.isAuthenticated()) {
+        console.log('Authentication check failed');
         return res.status(401).json({ message: 'Not authenticated' });
       }
+      console.log('User authenticated:', req.user);
 
       const timelineId = parseInt(req.params.timelineId);
-      // Log incoming request body for debugging
-      console.log('Reorder request received with body:', JSON.stringify(req.body));
+      console.log('Timeline ID parsed:', timelineId);
       
-      const { imageIds } = req.body; // Array of image IDs in new order
+      // Handle various possible request body formats
+      let imageIds;
+      if (typeof req.body === 'string') {
+        try {
+          // Try to parse if the body is a JSON string
+          const parsedBody = JSON.parse(req.body);
+          imageIds = parsedBody.imageIds;
+          console.log('Parsed request body from string:', parsedBody);
+        } catch (e) {
+          console.error('Failed to parse request body as JSON string:', e);
+        }
+      } else if (req.body && typeof req.body === 'object') {
+        // Body is already an object - might be array or object with imageIds
+        if (Array.isArray(req.body)) {
+          imageIds = req.body;
+          console.log('Using request body directly as imageIds array');
+        } else {
+          imageIds = req.body.imageIds;
+          console.log('Extracted imageIds from request body object');
+        }
+      }
+      
+      console.log('Final extracted imageIds:', imageIds);
       
       if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
+        console.log('Invalid image ID array detected');
         return res.status(400).json({ 
           message: 'Invalid or empty image ID array' 
         });
@@ -1335,6 +1365,7 @@ export function registerRoutes(app: Express): Server {
       const validatedImageIds = [];
       for (let i = 0; i < imageIds.length; i++) {
         const id = Number(imageIds[i]);
+        console.log(`Processing image ID at index ${i}:`, imageIds[i], '→ parsed as:', id);
         
         if (isNaN(id) || !Number.isInteger(id) || id <= 0) {
           console.error(`Invalid image ID at index ${i}:`, imageIds[i]);
@@ -1349,6 +1380,7 @@ export function registerRoutes(app: Express): Server {
       console.log('Validated image IDs:', validatedImageIds);
       
       // Check timeline ownership
+      console.log('Checking timeline ownership for user ID:', req.user?.id);
       const [timeline] = await db
         .select()
         .from(timelines)
@@ -1356,12 +1388,15 @@ export function registerRoutes(app: Express): Server {
           eq(timelines.id, timelineId),
           eq(timelines.userId, req.user!.id)
         ));
+      
+      console.log('Timeline found:', timeline ? 'Yes' : 'No');
         
       if (!timeline) {
         return res.status(404).json({ message: 'Timeline not found' });
       }
       
       // Verify the images exist and belong to this timeline
+      console.log('Verifying images exist and belong to timeline');
       const existingImages = await db
         .select()
         .from(timelineImages)
@@ -1371,6 +1406,7 @@ export function registerRoutes(app: Express): Server {
         ));
       
       console.log('Found existing images:', existingImages.length);
+      console.log('Image IDs found:', existingImages.map(img => img.id));
       
       if (existingImages.length !== validatedImageIds.length) {
         const foundIds = existingImages.map(img => img.id);
@@ -1383,15 +1419,15 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Process each image update individually rather than in a transaction
-      // to avoid potential issues
+      // Process each image update individually
+      console.log('Processing updates for each image');
       for (let i = 0; i < validatedImageIds.length; i++) {
         const imageId = validatedImageIds[i];
         const orderValue = i;
         
         console.log(`Setting image ${imageId} to order ${orderValue}`);
         
-        await db
+        const updateResult = await db
           .update(timelineImages)
           .set({ 
             order: orderValue, 
@@ -1402,17 +1438,25 @@ export function registerRoutes(app: Express): Server {
             eq(timelineImages.id, imageId),
             eq(timelineImages.timelineId, timelineId)
           ));
+          
+        console.log(`Update result for image ${imageId}:`, updateResult);
       }
 
       // Get the updated images after reordering
+      console.log('Retrieving updated images');
       const updatedImages = await db
         .select()
         .from(timelineImages)
         .where(eq(timelineImages.timelineId, timelineId))
         .orderBy(timelineImages.order);
+        
+      console.log(`Retrieved ${updatedImages.length} images after reordering`);
+      console.log('Images in order:', updatedImages.map(img => ({ id: img.id, order: img.order })));
 
+      console.log('========== REORDER REQUEST COMPLETED SUCCESSFULLY ==========');
       res.json(updatedImages);
     } catch (error) {
+      console.error('========== REORDER REQUEST FAILED ==========');
       console.error('Error reordering timeline images:', error);
       res.status(500).json({ 
         message: 'Failed to reorder images',
