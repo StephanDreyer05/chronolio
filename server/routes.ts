@@ -1314,54 +1314,22 @@ export function registerRoutes(app: Express): Server {
 
   // Add endpoint for reordering images
   app.put('/api/timelines/:timelineId/images/reorder', async (req, res) => {
-    console.log('========== REORDER REQUEST STARTED ==========');
-    console.log('Request params:', req.params);
-    console.log('Request body (raw):', req.body);
-    console.log('Request body type:', typeof req.body);
-    console.log('Request headers:', req.headers);
-    
     try {
       if (!req.isAuthenticated()) {
-        console.log('Authentication check failed');
         return res.status(401).json({ message: 'Not authenticated' });
       }
-      console.log('User authenticated:', req.user);
 
-      // Parse timelineId as integer with radix 10
-      const timelineId = parseInt(String(req.params.timelineId), 10);
-      console.log('Timeline ID parsed:', timelineId);
+      // Ensure timelineId is a valid integer - this is the critical fix
+      const timelineId = Number(parseInt(req.params.timelineId, 10));
       
       if (isNaN(timelineId) || timelineId <= 0) {
         console.error('Invalid timelineId:', req.params.timelineId);
         return res.status(400).json({ message: 'Invalid timeline ID' });
       }
-      
-      // Handle various possible request body formats
-      let imageIds;
-      if (typeof req.body === 'string') {
-        try {
-          // Try to parse if the body is a JSON string
-          const parsedBody = JSON.parse(req.body);
-          imageIds = parsedBody.imageIds;
-          console.log('Parsed request body from string:', parsedBody);
-        } catch (e) {
-          console.error('Failed to parse request body as JSON string:', e);
-        }
-      } else if (req.body && typeof req.body === 'object') {
-        // Body is already an object - might be array or object with imageIds
-        if (Array.isArray(req.body)) {
-          imageIds = req.body;
-          console.log('Using request body directly as imageIds array');
-        } else {
-          imageIds = req.body.imageIds;
-          console.log('Extracted imageIds from request body object');
-        }
-      }
-      
-      console.log('Raw extracted imageIds:', imageIds);
+
+      const { imageIds } = req.body; // Array of image IDs in new order
       
       if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
-        console.log('Invalid image ID array detected');
         return res.status(400).json({ 
           message: 'Invalid or empty image ID array' 
         });
@@ -1370,17 +1338,7 @@ export function registerRoutes(app: Express): Server {
       // Validate all IDs are valid integers
       const validatedImageIds = [];
       for (let i = 0; i < imageIds.length; i++) {
-        // Handle array of numbers - make sure we force string conversion
-        const idStr = String(imageIds[i]);
-        const id = parseInt(idStr, 10);
-        
-        console.log(`Processing image ID at index ${i}:`, 
-          'original:', imageIds[i], 
-          'type:', typeof imageIds[i], 
-          'toString:', idStr, 
-          'parsed as number:', id,
-          'is NaN:', isNaN(id)
-        );
+        const id = Number(parseInt(String(imageIds[i]), 10));
         
         if (isNaN(id) || id <= 0) {
           console.error(`Invalid image ID at index ${i}:`, imageIds[i]);
@@ -1392,10 +1350,7 @@ export function registerRoutes(app: Express): Server {
         validatedImageIds.push(id);
       }
       
-      console.log('Validated image IDs:', validatedImageIds);
-      
       // Check timeline ownership
-      console.log('Checking timeline ownership for user ID:', req.user?.id);
       const [timeline] = await db
         .select()
         .from(timelines)
@@ -1403,15 +1358,12 @@ export function registerRoutes(app: Express): Server {
           eq(timelines.id, timelineId),
           eq(timelines.userId, req.user!.id)
         ));
-      
-      console.log('Timeline found:', timeline ? 'Yes' : 'No');
         
       if (!timeline) {
         return res.status(404).json({ message: 'Timeline not found' });
       }
       
       // Verify the images exist and belong to this timeline
-      console.log('Verifying images exist and belong to timeline');
       const existingImages = await db
         .select()
         .from(timelineImages)
@@ -1419,9 +1371,6 @@ export function registerRoutes(app: Express): Server {
           inArray(timelineImages.id, validatedImageIds),
           eq(timelineImages.timelineId, timelineId)
         ));
-      
-      console.log('Found existing images:', existingImages.length);
-      console.log('Image IDs found:', existingImages.map(img => img.id));
       
       if (existingImages.length !== validatedImageIds.length) {
         const foundIds = existingImages.map(img => img.id);
@@ -1435,81 +1384,37 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Process each image update individually
-      console.log('Processing updates for each image');
-      const updateErrors = [];
-      
       for (let i = 0; i < validatedImageIds.length; i++) {
         const imageId = validatedImageIds[i];
         const orderValue = i;
         
-        console.log(`Setting image ${imageId} (type: ${typeof imageId}) to order ${orderValue} (type: ${typeof orderValue})`);
-        
-        // Triple check that we have valid integers
-        if (isNaN(Number(imageId)) || isNaN(Number(orderValue)) || 
-            !Number.isInteger(Number(imageId)) || !Number.isInteger(Number(orderValue))) {
-          console.error('NaN check failed:', { imageId, orderValue });
-          updateErrors.push({ 
-            imageId, 
-            error: `Invalid values detected: imageId=${imageId}, orderValue=${orderValue}` 
-          });
-          continue;
-        }
-        
         try {
-          // Debug the exact SQL values and explicitly convert all values to Number
-          const numericImageId = Number(imageId);
-          const numericOrderValue = Number(orderValue);
-          const numericTimelineId = Number(timelineId);
-          
-          console.log('SQL values to be used (after explicit Number conversion):', {
-            order: numericOrderValue,
-            imageId: numericImageId,
-            timelineId: numericTimelineId
-          });
-          
-          // Use raw SQL to ensure proper types
-          const updateSql = sql`
-            UPDATE ${timelineImages}
-            SET 
-              "order" = ${numericOrderValue},
-              "updatedAt" = ${new Date()},
-              "last_modified" = ${new Date()}
-            WHERE 
-              "id" = ${numericImageId} AND
-              "timelineId" = ${numericTimelineId}
-          `;
-          
-          const updateResult = await db.execute(updateSql);
-          console.log(`Update result for image ${numericImageId}:`, updateResult);
+          await db
+            .update(timelineImages)
+            .set({ 
+              order: orderValue,
+              updatedAt: new Date(), 
+              last_modified: new Date() 
+            })
+            .where(and(
+              eq(timelineImages.id, imageId),
+              eq(timelineImages.timelineId, timelineId) // This is parameter $3
+            ));
         } catch (err) {
           console.error(`Failed to update image ${imageId} with order ${orderValue}:`, err);
-          updateErrors.push({ imageId, error: err instanceof Error ? err.message : String(err) });
+          return res.status(500).json({ message: 'Failed to update timeline image' });
         }
-      }
-      
-      if (updateErrors.length > 0) {
-        console.error('Some updates failed:', updateErrors);
-        return res.status(500).json({
-          message: 'Failed to update some images',
-          errors: updateErrors
-        });
       }
 
       // Get the updated images after reordering
-      console.log('Retrieving updated images');
       const updatedImages = await db
         .select()
         .from(timelineImages)
         .where(eq(timelineImages.timelineId, timelineId))
         .orderBy(timelineImages.order);
-        
-      console.log(`Retrieved ${updatedImages.length} images after reordering`);
-      console.log('Images in order:', updatedImages.map(img => ({ id: img.id, order: img.order })));
 
-      console.log('========== REORDER REQUEST COMPLETED SUCCESSFULLY ==========');
       res.json(updatedImages);
     } catch (error) {
-      console.error('========== REORDER REQUEST FAILED ==========');
       console.error('Error reordering timeline images:', error);
       res.status(500).json({ 
         message: 'Failed to reorder images',
