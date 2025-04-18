@@ -1296,7 +1296,7 @@ export default function SettingsPage() {
             <div className="md:col-span-2 space-y-8">
               <Card className="bg-white dark:bg-zinc-900 border shadow-sm overflow-hidden">
                 <CardHeader>
-                  <CardTitle>Event Types (Updated)</CardTitle>
+                  <CardTitle>Event Types</CardTitle>
                   <CardDescription>
                     Manage event types and their custom fields
                   </CardDescription>

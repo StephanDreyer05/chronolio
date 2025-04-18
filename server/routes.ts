@@ -55,6 +55,7 @@ interface TimelineEventVendor {
   last_modified?: Date;
 }
 
+// Configure multer for memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -3338,7 +3339,7 @@ export function registerRoutes(app: Express): Server {
       const randomString = Math.random().toString(36).substring(2, 8);
       const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '-');
       const userId = req.user!.id;
-      const key = `user-${userId}/timeline-${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
+      const key = `timelines/${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
 
       console.log('Upload details:', {
         userId,

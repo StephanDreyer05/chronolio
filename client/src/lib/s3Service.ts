@@ -42,8 +42,8 @@ class FallbackS3Service {
       const timestamp = Date.now();
       const randomString = Math.random().toString(36).substring(2, 15);
       const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '-');
-      // Use a generic userId (1) for fallback keys
-      return `fallback-s3-key-1/timeline-${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
+      // Use the standard timelines format for fallback keys
+      return `fallback-s3-key-timelines/${timelineId}/images/${timestamp}-${randomString}-${sanitizedFileName}`;
     }
   }
 
@@ -110,7 +110,33 @@ class FallbackS3Service {
   }
 
   extractS3KeyFromUrl(imageUrl: string): string {
-    return imageUrl;
+    // If it's already a key (not a full URL), return it as is
+    if (!imageUrl.startsWith('http')) {
+      return imageUrl;
+    }
+    
+    try {
+      // Extract the key from the URL
+      // Handle S3 URLs in both virtual host and path style formats
+      const url = new URL(imageUrl);
+      
+      if (url.hostname.includes('s3') && url.hostname.includes('amazonaws.com')) {
+        // Path style URL
+        const pathParts = url.pathname.split('/');
+        
+        // Check if this is a path-style URL (bucket name in the path)
+        if (pathParts[1] === 'chronolio.timeline.images') {
+          // Extract the key (everything after the bucket name)
+          return pathParts.slice(2).join('/');
+        }
+      }
+      
+      // If we can't extract the key, just return the URL
+      return imageUrl;
+    } catch (error) {
+      console.error('Error extracting S3 key:', error);
+      return imageUrl;
+    }
   }
 
   // Add this new method to use server endpoint instead
