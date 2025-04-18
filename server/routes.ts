@@ -1456,26 +1456,31 @@ export function registerRoutes(app: Express): Server {
         }
         
         try {
-          // Debug the exact SQL before it's executed
-          console.log('SQL values to be used:', {
-            order: orderValue,
-            imageId: imageId,
-            timelineId: timelineId
+          // Debug the exact SQL values and explicitly convert all values to Number
+          const numericImageId = Number(imageId);
+          const numericOrderValue = Number(orderValue);
+          const numericTimelineId = Number(timelineId);
+          
+          console.log('SQL values to be used (after explicit Number conversion):', {
+            order: numericOrderValue,
+            imageId: numericImageId,
+            timelineId: numericTimelineId
           });
           
-          const updateResult = await db
-            .update(timelineImages)
-            .set({ 
-              order: orderValue,
-              updatedAt: new Date(), 
-              last_modified: new Date() 
-            })
-            .where(and(
-              eq(timelineImages.id, imageId),
-              eq(timelineImages.timelineId, timelineId)
-            ));
-            
-          console.log(`Update result for image ${imageId}:`, updateResult);
+          // Use raw SQL to ensure proper types
+          const updateSql = sql`
+            UPDATE ${timelineImages}
+            SET 
+              "order" = ${numericOrderValue},
+              "updatedAt" = ${new Date()},
+              "last_modified" = ${new Date()}
+            WHERE 
+              "id" = ${numericImageId} AND
+              "timelineId" = ${numericTimelineId}
+          `;
+          
+          const updateResult = await db.execute(updateSql);
+          console.log(`Update result for image ${numericImageId}:`, updateResult);
         } catch (err) {
           console.error(`Failed to update image ${imageId} with order ${orderValue}:`, err);
           updateErrors.push({ imageId, error: err instanceof Error ? err.message : String(err) });
