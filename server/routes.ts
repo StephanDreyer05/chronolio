@@ -1319,35 +1319,33 @@ export function registerRoutes(app: Express): Server {
         return res.status(401).json({ message: 'Not authenticated' });
       }
 
-      // Ensure timelineId is a valid integer - this is the critical fix
-      const timelineId = Number(parseInt(req.params.timelineId, 10));
+      // Parse and validate timelineId as integer - CRITICAL FIX
+      const rawTimelineId = req.params.timelineId;
+      const timelineId = parseInt(rawTimelineId, 10);
       
-      if (isNaN(timelineId) || timelineId <= 0) {
-        console.error('Invalid timelineId:', req.params.timelineId);
-        return res.status(400).json({ message: 'Invalid timeline ID' });
+      if (isNaN(timelineId)) {
+        console.error(`Invalid timelineId: "${rawTimelineId}"`);
+        return res.status(400).json({ message: 'Invalid timeline ID format' });
       }
 
-      const { imageIds } = req.body; // Array of image IDs in new order
+      const { imageIds } = req.body;
       
       if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
-        return res.status(400).json({ 
-          message: 'Invalid or empty image ID array' 
-        });
+        return res.status(400).json({ message: 'Invalid or empty image ID array' });
       }
       
-      // Validate all IDs are valid integers
-      const validatedImageIds = [];
-      for (let i = 0; i < imageIds.length; i++) {
-        const id = Number(parseInt(String(imageIds[i]), 10));
-        
-        if (isNaN(id) || id <= 0) {
-          console.error(`Invalid image ID at index ${i}:`, imageIds[i]);
-          return res.status(400).json({ 
-            message: `Invalid image ID at position ${i}. Must be a positive integer.` 
-          });
+      // Validate and parse all image IDs
+      const validatedImageIds = imageIds.map(id => {
+        const parsedId = parseInt(String(id), 10);
+        if (isNaN(parsedId) || parsedId <= 0) {
+          console.error(`Invalid image ID: "${id}"`);
+          return null;
         }
-        
-        validatedImageIds.push(id);
+        return parsedId;
+      }).filter(id => id !== null);
+      
+      if (validatedImageIds.length !== imageIds.length) {
+        return res.status(400).json({ message: 'One or more invalid image IDs detected' });
       }
       
       // Check timeline ownership
@@ -1356,7 +1354,7 @@ export function registerRoutes(app: Express): Server {
         .from(timelines)
         .where(and(
           eq(timelines.id, timelineId),
-          eq(timelines.userId, req.user!.id)
+          eq(timelines.userId, req.user.id)
         ));
         
       if (!timeline) {
@@ -1373,35 +1371,30 @@ export function registerRoutes(app: Express): Server {
         ));
       
       if (existingImages.length !== validatedImageIds.length) {
-        const foundIds = existingImages.map(img => img.id);
-        const missingIds = validatedImageIds.filter(id => !foundIds.includes(id));
-        
-        console.error('Missing or invalid image IDs:', missingIds);
         return res.status(400).json({ 
-          message: 'One or more image IDs are invalid or do not belong to this timeline',
-          invalidIds: missingIds
+          message: 'One or more image IDs are invalid or do not belong to this timeline'
         });
       }
 
-      // Process each image update individually
+      // Update each image's order using a new approach
       for (let i = 0; i < validatedImageIds.length; i++) {
         const imageId = validatedImageIds[i];
         const orderValue = i;
         
+        // Using direct raw SQL query with explicit type casting to avoid NaN issues
+        const updateQuery = `
+          UPDATE "timelineImages" 
+          SET "order" = ${orderValue}::integer, 
+              "updatedAt" = NOW(), 
+              "last_modified" = NOW() 
+          WHERE "id" = ${imageId}::integer 
+          AND "timelineId" = ${timelineId}::integer
+        `;
+        
         try {
-          await db
-            .update(timelineImages)
-            .set({ 
-              order: orderValue,
-              updatedAt: new Date(), 
-              last_modified: new Date() 
-            })
-            .where(and(
-              eq(timelineImages.id, imageId),
-              eq(timelineImages.timelineId, timelineId) // This is parameter $3
-            ));
+          await db.execute(sql.raw(updateQuery));
         } catch (err) {
-          console.error(`Failed to update image ${imageId} with order ${orderValue}:`, err);
+          console.error(`Failed to update image ${imageId}:`, err);
           return res.status(500).json({ message: 'Failed to update timeline image' });
         }
       }
@@ -1416,10 +1409,7 @@ export function registerRoutes(app: Express): Server {
       res.json(updatedImages);
     } catch (error) {
       console.error('Error reordering timeline images:', error);
-      res.status(500).json({ 
-        message: 'Failed to reorder images',
-        error: error instanceof Error ? error.message : String(error)
-      });
+      res.status(500).json({ message: 'Failed to reorder images' });
     }
   });
   
