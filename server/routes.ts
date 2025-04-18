@@ -1320,36 +1320,91 @@ export function registerRoutes(app: Express): Server {
       }
 
       const timelineId = parseInt(req.params.timelineId);
+      // Log incoming request body for debugging
+      console.log('Reorder request received with body:', JSON.stringify(req.body));
+      
       const { imageIds } = req.body; // Array of image IDs in new order
       
-      if (!imageIds || !Array.isArray(imageIds)) {
-        return res.status(400).json({ message: 'Invalid image ID array' });
+      if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
+        return res.status(400).json({ 
+          message: 'Invalid or empty image ID array' 
+        });
       }
       
       // Validate all IDs are valid integers
-      const validatedImageIds = imageIds.map(id => {
-        const parsedId = parseInt(id);
-        if (isNaN(parsedId)) {
-          throw new Error(`Invalid image ID: ${id} (not a number)`);
+      const validatedImageIds = [];
+      for (let i = 0; i < imageIds.length; i++) {
+        const id = Number(imageIds[i]);
+        
+        if (isNaN(id) || !Number.isInteger(id) || id <= 0) {
+          console.error(`Invalid image ID at index ${i}:`, imageIds[i]);
+          return res.status(400).json({ 
+            message: `Invalid image ID at position ${i}. Must be a positive integer.` 
+          });
         }
-        return parsedId;
-      });
+        
+        validatedImageIds.push(id);
+      }
       
-      console.log('Reordering images with IDs:', validatedImageIds);
+      console.log('Validated image IDs:', validatedImageIds);
+      
+      // Check timeline ownership
+      const [timeline] = await db
+        .select()
+        .from(timelines)
+        .where(and(
+          eq(timelines.id, timelineId),
+          eq(timelines.userId, req.user!.id)
+        ));
+        
+      if (!timeline) {
+        return res.status(404).json({ message: 'Timeline not found' });
+      }
+      
+      // Verify the images exist and belong to this timeline
+      const existingImages = await db
+        .select()
+        .from(timelineImages)
+        .where(and(
+          inArray(timelineImages.id, validatedImageIds),
+          eq(timelineImages.timelineId, timelineId)
+        ));
+      
+      console.log('Found existing images:', existingImages.length);
+      
+      if (existingImages.length !== validatedImageIds.length) {
+        const foundIds = existingImages.map(img => img.id);
+        const missingIds = validatedImageIds.filter(id => !foundIds.includes(id));
+        
+        console.error('Missing or invalid image IDs:', missingIds);
+        return res.status(400).json({ 
+          message: 'One or more image IDs are invalid or do not belong to this timeline',
+          invalidIds: missingIds
+        });
+      }
 
-      // Update order for each image using a single transaction
-      await db.transaction(async (tx) => {
-        for (let i = 0; i < validatedImageIds.length; i++) {
-          await tx
-            .update(timelineImages)
-            .set({ order: i, updatedAt: new Date(), last_modified: new Date() })
-            .where(and(
-              eq(timelineImages.id, validatedImageIds[i]),
-              eq(timelineImages.timelineId, timelineId)
-            ));
-        }
-      });
+      // Process each image update individually rather than in a transaction
+      // to avoid potential issues
+      for (let i = 0; i < validatedImageIds.length; i++) {
+        const imageId = validatedImageIds[i];
+        const orderValue = i;
+        
+        console.log(`Setting image ${imageId} to order ${orderValue}`);
+        
+        await db
+          .update(timelineImages)
+          .set({ 
+            order: orderValue, 
+            updatedAt: new Date(), 
+            last_modified: new Date() 
+          })
+          .where(and(
+            eq(timelineImages.id, imageId),
+            eq(timelineImages.timelineId, timelineId)
+          ));
+      }
 
+      // Get the updated images after reordering
       const updatedImages = await db
         .select()
         .from(timelineImages)
@@ -1359,7 +1414,10 @@ export function registerRoutes(app: Express): Server {
       res.json(updatedImages);
     } catch (error) {
       console.error('Error reordering timeline images:', error);
-      res.status(500).json({ message: 'Failed to reorder images' });
+      res.status(500).json({ 
+        message: 'Failed to reorder images',
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   });
   

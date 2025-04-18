@@ -160,11 +160,16 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
 
   const reorderMutation = useMutation({
     mutationFn: async (imageIds: number[]) => {
+      console.log('Sending reorder request with IDs:', imageIds);
       const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
         method: 'PUT',
         body: JSON.stringify({ imageIds }),
       });
-      if (!response.ok) throw new Error('Failed to reorder images');
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Reorder response error:', response.status, error);
+        throw new Error(error.message || 'Failed to reorder images');
+      }
       return response.json();
     },
     onSuccess: (newImages) => {
@@ -175,7 +180,8 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
         description: "Images reordered successfully",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Reorder mutation error:', error);
       toast({
         title: "Error",
         description: "Failed to reorder images",
@@ -185,15 +191,39 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
   });
 
   const moveImage = (dragIndex: number, hoverIndex: number) => {
+    // Validate indices
+    if (dragIndex < 0 || dragIndex >= images.length || hoverIndex < 0 || hoverIndex >= images.length) {
+      console.error('Invalid drag or hover index:', { dragIndex, hoverIndex, imagesLength: images.length });
+      return;
+    }
+    
     const draggedImage = images[dragIndex];
     const newImages = [...images];
     newImages.splice(dragIndex, 1);
     newImages.splice(hoverIndex, 0, draggedImage);
     setImages(newImages);
     
-    // Make sure we're only sending valid integer IDs
-    const imageIds = newImages.map(img => Number(img.id));
-    reorderMutation.mutate(imageIds);
+    // Validate and convert image IDs to numbers, ensuring no NaN values
+    const imageIds = newImages.map(img => {
+      const id = Number(img.id);
+      if (isNaN(id) || !Number.isInteger(id) || id <= 0) {
+        console.error('Invalid image ID detected:', img.id);
+        return null;
+      }
+      return id;
+    }).filter(id => id !== null) as number[];
+    
+    // Only send the request if all IDs are valid
+    if (imageIds.length === newImages.length) {
+      reorderMutation.mutate(imageIds);
+    } else {
+      console.error('Detected invalid image IDs, aborting reorder request');
+      toast({
+        title: "Error",
+        description: "Failed to reorder images due to invalid data",
+        variant: "destructive",
+      });
+    }
   };
 
   const uploadMutation = useMutation({
