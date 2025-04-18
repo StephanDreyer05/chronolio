@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Pencil, Trash2, Upload, X, Eye, GripVertical, Trash, PlusCircle, Loader2, AlertCircle } from "lucide-react";
+import { Pencil, Trash2, Upload, X, Eye, GripVertical, Trash, PlusCircle, Loader2, AlertCircle, Maximize2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -369,28 +369,17 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
           throw new Error('Failed to upload images to server');
         }
       } else {
-        // For now, use the standard endpoint even when we have real S3 keys
-        // We'll need to create a server endpoint to handle S3 keys in the future
-        const formData = new FormData();
-        
-        // Add the S3 keys as metadata (server will ignore this for now)
-        formData.append('s3Data', JSON.stringify({
-          keys: successfulUploads.map(r => r.s3Key),
-          filenames: successfulUploads.map(r => r.file.name)
-        }));
-        
-        // Also include the actual files as fallback
-        selectedFiles.forEach(file => {
-          formData.append('images', file);
-        });
-
-        const response = await fetchWithAuth(`/api/timelines/${timelineId}/images`, {
+        // S3 upload was successful, just register the keys with the server
+        const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/register-s3`, {
           method: 'POST',
-          body: formData,
+          body: JSON.stringify({
+            s3Keys: successfulUploads.map(r => r.s3Key),
+            filenames: successfulUploads.map(r => r.file.name)
+          }),
         });
 
         if (!response.ok) {
-          throw new Error('Failed to upload images to server');
+          throw new Error('Failed to register S3 uploads with server');
         }
       }
 
@@ -512,9 +501,14 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
       {/* Preview Image Dialog */}
       {previewImage && (
         <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-3xl">
             <div className="flex flex-col gap-4">
-              <S3Image imageUrl={previewImage.imageUrl} caption={previewImage.caption} />
+              <S3Image 
+                imageUrl={previewImage.imageUrl} 
+                caption={previewImage.caption} 
+                showFullscreenButton={true} 
+                className="max-h-[70vh]"
+              />
             </div>
           </DialogContent>
         </Dialog>
@@ -571,9 +565,10 @@ interface S3ImageProps {
   imageUrl: string;
   caption?: string;
   className?: string;
+  showFullscreenButton?: boolean;
 }
 
-function S3Image({ imageUrl, caption, className = '' }: S3ImageProps) {
+function S3Image({ imageUrl, caption, className = '', showFullscreenButton = false }: S3ImageProps) {
   const { url, loading, error } = useS3Image(imageUrl);
   
   if (loading) {
@@ -602,6 +597,17 @@ function S3Image({ imageUrl, caption, className = '' }: S3ImageProps) {
         alt={caption || 'Timeline image'}
         className="w-full rounded-md object-contain"
       />
+      {showFullscreenButton && (
+        <Button 
+          variant="outline" 
+          size="sm"
+          className="absolute top-2 right-2 bg-white/80 dark:bg-gray-800/80"
+          onClick={() => window.open(url, '_blank')}
+        >
+          <Maximize2 className="w-4 h-4 mr-1" />
+          <span className="text-xs">Fullscreen</span>
+        </Button>
+      )}
       {caption && (
         <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
           {caption}

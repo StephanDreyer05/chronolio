@@ -1347,6 +1347,57 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: 'Failed to reorder images' });
     }
   });
+  
+  // Add endpoint to register S3 keys that are already uploaded
+  app.post('/api/timelines/:timelineId/images/register-s3', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+
+      const timelineId = parseInt(req.params.timelineId);
+      const { s3Keys, filenames } = req.body;
+
+      if (!s3Keys || !Array.isArray(s3Keys) || s3Keys.length === 0) {
+        return res.status(400).json({ message: 'No S3 keys provided' });
+      }
+
+      // Check current number of images
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(timelineImages)
+        .where(eq(timelineImages.timelineId, timelineId));
+
+      const remainingSlots = 10 - parseInt(count.toString());
+
+      if (remainingSlots <= 0) {
+        return res.status(400).json({ message: 'Maximum limit of 10 images reached' });
+      }
+
+      // Only process up to the remaining slots
+      const keysToProcess = s3Keys.slice(0, remainingSlots);
+      
+      console.log('Registering S3 keys:', keysToProcess);
+      
+      // Prepare values for database insertion
+      const imagesToInsert = keysToProcess.map((key, index) => ({
+        timelineId,
+        imageUrl: key,
+        caption: '', // Default empty caption
+        order: parseInt(count.toString()) + index
+      }));
+      
+      // Insert the keys into the database
+      const insertedImages = await db.insert(timelineImages)
+        .values(imagesToInsert)
+        .returning();
+
+      res.json(insertedImages);
+    } catch (error) {
+      console.error('Error registering S3 images:', error);
+      res.status(500).json({ message: 'Failed to register S3 images' });
+    }
+  });
 
   // Duplicate a timeline
   app.post('/api/timelines/:id/duplicate', async (req, res) => {
