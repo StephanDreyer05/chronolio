@@ -190,7 +190,10 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
     newImages.splice(dragIndex, 1);
     newImages.splice(hoverIndex, 0, draggedImage);
     setImages(newImages);
-    reorderMutation.mutate(newImages.map(img => img.id));
+    
+    // Make sure we're only sending valid integer IDs
+    const imageIds = newImages.map(img => Number(img.id));
+    reorderMutation.mutate(imageIds);
   };
 
   const uploadMutation = useMutation({
@@ -502,12 +505,12 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
       {previewImage && (
         <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
           <DialogContent className="sm:max-w-3xl">
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col items-center justify-center gap-4 w-full h-full">
               <S3Image 
                 imageUrl={previewImage.imageUrl} 
                 caption={previewImage.caption} 
                 showFullscreenButton={true} 
-                className="max-h-[70vh]"
+                className="max-h-[70vh] w-auto object-contain mx-auto"
               />
             </div>
           </DialogContent>
@@ -591,11 +594,11 @@ function S3Image({ imageUrl, caption, className = '', showFullscreenButton = fal
   }
   
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative flex items-center justify-center ${className}`}>
       <img
         src={url}
         alt={caption || 'Timeline image'}
-        className="w-full rounded-md object-contain"
+        className="w-full h-full rounded-md object-contain"
       />
       {showFullscreenButton && (
         <Button 

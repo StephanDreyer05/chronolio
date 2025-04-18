@@ -1321,15 +1321,30 @@ export function registerRoutes(app: Express): Server {
 
       const timelineId = parseInt(req.params.timelineId);
       const { imageIds } = req.body; // Array of image IDs in new order
+      
+      if (!imageIds || !Array.isArray(imageIds)) {
+        return res.status(400).json({ message: 'Invalid image ID array' });
+      }
+      
+      // Validate all IDs are valid integers
+      const validatedImageIds = imageIds.map(id => {
+        const parsedId = parseInt(id);
+        if (isNaN(parsedId)) {
+          throw new Error(`Invalid image ID: ${id} (not a number)`);
+        }
+        return parsedId;
+      });
+      
+      console.log('Reordering images with IDs:', validatedImageIds);
 
       // Update order for each image using a single transaction
       await db.transaction(async (tx) => {
-        for (let i = 0; i < imageIds.length; i++) {
+        for (let i = 0; i < validatedImageIds.length; i++) {
           await tx
             .update(timelineImages)
             .set({ order: i, updatedAt: new Date(), last_modified: new Date() })
             .where(and(
-              eq(timelineImages.id, imageIds[i]),
+              eq(timelineImages.id, validatedImageIds[i]),
               eq(timelineImages.timelineId, timelineId)
             ));
         }
