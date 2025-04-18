@@ -161,13 +161,19 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
   const reorderMutation = useMutation({
     mutationFn: async (imageIds: number[]) => {
       console.log('Sending reorder request with IDs:', imageIds);
+      console.log('ID types:', imageIds.map(id => typeof id));
+      
+      const requestBody = { imageIds };
+      console.log('Request body:', JSON.stringify(requestBody));
+      
       const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ imageIds }),
+        body: JSON.stringify(requestBody),
       });
+      
       if (!response.ok) {
         let error;
         try {
@@ -178,6 +184,8 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
         console.error('Reorder response error:', response.status, error);
         throw new Error(error.message || 'Failed to reorder images');
       }
+      
+      console.log('Reorder successful, response status:', response.status);
       return response.json();
     },
     onSuccess: (newImages) => {
@@ -211,15 +219,16 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
     newImages.splice(hoverIndex, 0, draggedImage);
     setImages(newImages);
     
-    // Extract just the image IDs for the reorder request
+    // Extract image IDs and ensure they are valid integers
     const imageIds = newImages.map(img => {
-      const id = Number(img.id);
-      if (isNaN(id) || !Number.isInteger(id) || id <= 0) {
+      // Parse the ID and ensure it's a valid integer
+      const id = parseInt(String(img.id), 10);
+      if (isNaN(id) || id <= 0) {
         console.error('Invalid image ID detected:', img.id);
         return null;
       }
       return id;
-    }).filter(Boolean) as number[];
+    }).filter(id => id !== null) as number[];
     
     // Only send the request if all IDs are valid
     if (imageIds.length === newImages.length) {
