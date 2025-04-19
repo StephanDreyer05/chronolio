@@ -1337,7 +1337,7 @@ export function registerRoutes(app: Express): Server {
           await db.execute(sql`
             UPDATE "timelineImages" 
             SET "order" = ${i} 
-            WHERE "id" = ${parseInt(String(imageIds[i]))} 
+            WHERE "id" = ${imageIds[i]} 
             AND "timelineId" = ${timelineId}
           `);
         } catch (err) {
