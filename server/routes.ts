@@ -1329,15 +1329,31 @@ export function registerRoutes(app: Express): Server {
       if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
         return res.status(400).json({ message: 'Invalid or empty image ID array' });
       }
+      
+      // Validate and convert all IDs to ensure they're valid integers
+      const validatedIds = [];
+      for (const id of imageIds) {
+        // Convert to number and validate
+        const numericId = Number(id);
+        if (isNaN(numericId) || numericId <= 0) {
+          console.warn(`Invalid image ID: ${id} (${typeof id})`);
+          continue; // Skip invalid IDs
+        }
+        validatedIds.push(numericId);
+      }
+      
+      if (validatedIds.length === 0) {
+        return res.status(400).json({ message: 'No valid image IDs provided' });
+      }
 
       // Update each image individually with a raw SQL query to avoid issues with the "order" keyword
-      for (let i = 0; i < imageIds.length; i++) {
+      for (let i = 0; i < validatedIds.length; i++) {
         try {
-          // Use raw SQL with explicit quoting for the "order" column name
+          // Use raw SQL with explicit quoting for the "order" column name and explicit integer casting
           await db.execute(sql`
             UPDATE "timelineImages" 
             SET "order" = ${i} 
-            WHERE "id" = ${parseInt(String(imageIds[i]))} 
+            WHERE "id" = ${validatedIds[i]} 
             AND "timelineId" = ${timelineId}
           `);
         } catch (err) {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,6 @@ import { useDrag, useDrop } from 'react-dnd';
 import { fetchWithAuth } from "../../lib/api";
 import { uploadToS3, deleteFromS3, extractS3KeyFromUrl } from '../../lib/s3Service';
 import { useS3Image } from '../../hooks/useS3Image';
-import React from 'react';
 
 interface TimelineImage {
   id: number;
@@ -161,68 +160,35 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
 
   const reorderMutation = useMutation({
     mutationFn: async (imageIds: number[]) => {
-      if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
-        throw new Error('Invalid image IDs provided for reordering');
+      // Server expects a simple array of image IDs where the position in the array
+      // determines the order value that will be set in the database
+      
+      // Validate IDs to ensure they're all valid numbers
+      const validatedIds = imageIds.filter(id => {
+        const isValid = !isNaN(Number(id)) && Number(id) > 0;
+        if (!isValid) {
+          console.error('Invalid image ID detected and removed:', id);
+        }
+        return isValid;
+      });
+      
+      if (validatedIds.length === 0) {
+        throw new Error('No valid image IDs to reorder');
       }
       
-      // Try different payload formats since we're not sure which one the server expects
-      
-      // Format 1: Array of objects with id and order
-      const structuredPayload = {
-        imageIds: imageIds.map((id, index) => ({
-          id,
-          order: index
-        }))
-      };
-      
-      // Format 2: Simple array of IDs
-      const simplePayload = { imageIds };
-      
-      // Format 3: Object with ID keys and order values (common pattern)
-      const orderMapPayload = {
-        orders: Object.fromEntries(imageIds.map((id, index) => [id, index]))
-      };
-      
-      console.log('Attempting image reorder with multiple payload formats');
+      console.log('Sending reorder request with IDs array:', validatedIds);
       
       try {
-        // First try with the structured payload format
-        console.log('Trying format 1:', structuredPayload);
-        let response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
+        // Send exactly what the server expects - a simple object with an imageIds array
+        const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(structuredPayload),
+          body: JSON.stringify({ imageIds: validatedIds }),
         });
         
-        // If that fails, try with the simpler format
-        if (!response.ok && response.status === 500) {
-          console.log('Format 1 failed, trying format 2:', simplePayload);
-          
-          response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(simplePayload),
-          });
-          
-          // If that also fails, try the order map format
-          if (!response.ok && response.status === 500) {
-            console.log('Format 2 failed, trying format 3:', orderMapPayload);
-            
-            response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(orderMapPayload),
-            });
-          }
-        }
-        
-        // Handle non-OK responses after all attempts
+        // Handle non-OK responses
         if (!response.ok) {
           let errorMessage = `Server returned ${response.status}`;
           
@@ -240,7 +206,7 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
         console.log('Reorder successful with status:', response.status);
         return response.json();
       } catch (error) {
-        console.error('Reorder request failed after all attempts:', error);
+        console.error('Reorder request failed:', error);
         throw error;
       }
     },
@@ -273,7 +239,7 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
   });
 
   // Add a reference to store the timeout ID for debouncing
-  const reorderTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const reorderTimeoutRef = useRef<number | null>(null);
 
   const moveImage = (dragIndex: number, hoverIndex: number) => {
     // Validate indices to prevent out-of-bounds errors
@@ -303,16 +269,27 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
       
       // Set a new timeout to debounce the API call (wait 800ms before sending)
       reorderTimeoutRef.current = setTimeout(() => {
+        // Extract just the image IDs in their new order
         const imageIds = updatedImages.map(img => Number(img.id));
         
-        // Only send valid IDs
-        if (imageIds.some(id => isNaN(id) || id <= 0)) {
-          console.error('Some image IDs are invalid, skipping reorder request');
-          return;
+        // Filter out any invalid IDs before sending the request
+        const validIds = imageIds.filter(id => !isNaN(id) && id > 0);
+        
+        if (validIds.length !== imageIds.length) {
+          console.warn('Some invalid IDs were filtered out during reordering');
         }
         
-        // Trigger the mutation with the updated order
-        reorderMutation.mutate(imageIds);
+        if (validIds.length > 0) {
+          // Trigger the mutation with the updated order
+          reorderMutation.mutate(validIds);
+        } else {
+          console.error('No valid IDs to reorder');
+          toast({
+            title: "Error",
+            description: "Failed to reorder images - no valid IDs",
+            variant: "destructive",
+          });
+        }
         
         // Clear the reference
         reorderTimeoutRef.current = null;
