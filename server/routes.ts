@@ -1320,13 +1320,18 @@ export function registerRoutes(app: Express): Server {
       }
 
       const timelineId = parseInt(req.params.timelineId);
-      console.log(`[Reorder Debug] Parsed timelineId: ${timelineId} (type: ${typeof timelineId})`); // <-- Added log
+      console.log(`[Reorder Debug] Parsed timelineId: ${timelineId} (type: ${typeof timelineId})`);
       if (isNaN(timelineId)) {
         return res.status(400).json({ message: 'Invalid timeline ID' });
       }
 
       const { imageIds } = req.body;
       
+      // --- TEMPORARY DEBUGGING: Comment out DB logic --- 
+      console.log(`[Reorder Debug] Received imageIds: ${JSON.stringify(imageIds)}`);
+      console.log(`[Reorder Debug] Skipping database update for now.`);
+      return res.json({ message: "Debug: Skipped DB update", timelineId: timelineId, receivedIds: imageIds });
+      /* --- Original Code Start ---
       if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
         return res.status(400).json({ message: 'Invalid or empty image ID array' });
       }
@@ -1376,9 +1381,11 @@ export function registerRoutes(app: Express): Server {
         .orderBy(timelineImages.order);
 
       res.json(updatedImages);
+      */ // --- Original Code End ---
     } catch (error) {
       // Log timelineId in the outer catch block as well
-      console.error(`[Reorder Outer Catch] timelineId: ${timelineId} (type: ${typeof timelineId})`); // <-- Added log
+      // const timelineId = parseInt(req.params.timelineId); // timelineId might not be defined here if error is early
+      console.error(`[Reorder Outer Catch] Error occurred during image reorder processing.`); // Simplified log
       console.error('Error reordering timeline images:', error);
       res.status(500).json({ message: 'Failed to reorder images' });
     }
