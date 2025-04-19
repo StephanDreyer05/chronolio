@@ -1333,14 +1333,35 @@ export function registerRoutes(app: Express): Server {
       // Update each image individually with a raw SQL query to avoid issues with the "order" keyword
       for (let i = 0; i < imageIds.length; i++) {
         try {
+          const currentImageId = imageIds[i]; // Use a variable for clarity
+          const orderIndex = i;
+          
+          // Add detailed logging and stricter checks
+          console.log(`[Reorder Debug] Iteration ${i}: timelineId=${timelineId} (type: ${typeof timelineId}), imageId=${currentImageId} (type: ${typeof currentImageId}), order=${orderIndex} (type: ${typeof orderIndex})`);
+
+          if (isNaN(timelineId) || typeof timelineId !== 'number') {
+            console.error(`[Reorder Error] Invalid timelineId before query: ${timelineId}`);
+            return res.status(500).json({ message: 'Internal error: Invalid timelineId' });
+          }
+          if (isNaN(currentImageId) || typeof currentImageId !== 'number') {
+            console.error(`[Reorder Error] Invalid imageId before query: ${currentImageId}`);
+            return res.status(500).json({ message: 'Internal error: Invalid imageId' });
+          }
+          if (isNaN(orderIndex) || typeof orderIndex !== 'number') {
+            console.error(`[Reorder Error] Invalid orderIndex before query: ${orderIndex}`);
+            return res.status(500).json({ message: 'Internal error: Invalid orderIndex' });
+          }
+
           // Use raw SQL with explicit quoting for the "order" column name
           await db.execute(sql`
             UPDATE "timelineImages" 
-            SET "order" = ${i} 
-            WHERE "id" = ${imageIds[i]} 
+            SET "order" = ${orderIndex} 
+            WHERE "id" = ${currentImageId} 
             AND "timelineId" = ${timelineId}
           `);
         } catch (err) {
+          // Log parameters again on error
+          console.error(`[Reorder DB Error] Failed on Iteration ${i}: timelineId=${timelineId}, imageId=${imageIds[i]}, order=${i}`);
           console.error(`Error updating image order:`, err);
           return res.status(500).json({ message: 'Failed to update timeline image' });
         }
