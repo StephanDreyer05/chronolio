@@ -1327,35 +1327,23 @@ export function registerRoutes(app: Express): Server {
 
       const { imageIds } = req.body;
       
-      // --- TEMPORARY DEBUGGING: Comment out DB logic --- 
-      console.log(`[Reorder Debug] Received imageIds: ${JSON.stringify(imageIds)}`);
-      console.log(`[Reorder Debug] Skipping database update for now.`);
-      return res.json({ message: "Debug: Skipped DB update", timelineId: timelineId, receivedIds: imageIds });
-      /* --- Original Code Start ---
       if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
         return res.status(400).json({ message: 'Invalid or empty image ID array' });
       }
 
+      console.log(`[Reorder Debug] Received imageIds: ${JSON.stringify(imageIds)}`);
+
       // Update each image individually with a raw SQL query to avoid issues with the "order" keyword
       for (let i = 0; i < imageIds.length; i++) {
         try {
-          const currentImageId = imageIds[i]; // Use a variable for clarity
+          const currentImageId = Number(imageIds[i]); // Ensure number type
           const orderIndex = i;
           
-          // Add detailed logging and stricter checks
-          console.log(`[Reorder Debug] Iteration ${i}: timelineId=${timelineId} (type: ${typeof timelineId}), imageId=${currentImageId} (type: ${typeof currentImageId}), order=${orderIndex} (type: ${typeof orderIndex})`);
+          console.log(`[Reorder Debug] Processing iteration ${i}: timelineId=${timelineId}, imageId=${currentImageId}, order=${orderIndex}`);
 
-          if (isNaN(timelineId) || typeof timelineId !== 'number') {
-            console.error(`[Reorder Error] Invalid timelineId before query: ${timelineId}`);
-            return res.status(500).json({ message: 'Internal error: Invalid timelineId' });
-          }
-          if (isNaN(currentImageId) || typeof currentImageId !== 'number') {
-            console.error(`[Reorder Error] Invalid imageId before query: ${currentImageId}`);
-            return res.status(500).json({ message: 'Internal error: Invalid imageId' });
-          }
-          if (isNaN(orderIndex) || typeof orderIndex !== 'number') {
-            console.error(`[Reorder Error] Invalid orderIndex before query: ${orderIndex}`);
-            return res.status(500).json({ message: 'Internal error: Invalid orderIndex' });
+          if (isNaN(currentImageId)) {
+            console.error(`[Reorder Error] Invalid imageId: ${imageIds[i]}`);
+            return res.status(400).json({ message: 'Invalid image ID in array' });
           }
 
           // Use raw SQL with explicit quoting for the "order" column name
@@ -1366,9 +1354,7 @@ export function registerRoutes(app: Express): Server {
             AND "timelineId" = ${timelineId}
           `);
         } catch (err) {
-          // Log parameters again on error
-          console.error(`[Reorder DB Error] Failed on Iteration ${i}: timelineId=${timelineId}, imageId=${imageIds[i]}, order=${i}`);
-          console.error(`Error updating image order:`, err);
+          console.error(`[Reorder DB Error] Failed on iteration ${i}:`, err);
           return res.status(500).json({ message: 'Failed to update timeline image' });
         }
       }
@@ -1381,12 +1367,8 @@ export function registerRoutes(app: Express): Server {
         .orderBy(timelineImages.order);
 
       res.json(updatedImages);
-      */ // --- Original Code End ---
     } catch (error) {
-      // Log timelineId in the outer catch block as well
-      // const timelineId = parseInt(req.params.timelineId); // timelineId might not be defined here if error is early
-      console.error(`[Reorder Outer Catch] Error occurred during image reorder processing.`); // Simplified log
-      console.error('Error reordering timeline images:', error);
+      console.error('[Reorder Outer Catch] Error occurred during reorder processing:', error);
       res.status(500).json({ message: 'Failed to reorder images' });
     }
   });
