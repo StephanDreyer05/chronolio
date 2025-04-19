@@ -1320,6 +1320,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const timelineId = parseInt(req.params.timelineId);
+      console.log(`[Reorder Debug] Parsed timelineId: ${timelineId} (type: ${typeof timelineId})`); // <-- Added log
       if (isNaN(timelineId)) {
         return res.status(400).json({ message: 'Invalid timeline ID' });
       }
@@ -1376,6 +1377,8 @@ export function registerRoutes(app: Express): Server {
 
       res.json(updatedImages);
     } catch (error) {
+      // Log timelineId in the outer catch block as well
+      console.error(`[Reorder Outer Catch] timelineId: ${timelineId} (type: ${typeof timelineId})`); // <-- Added log
       console.error('Error reordering timeline images:', error);
       res.status(500).json({ message: 'Failed to reorder images' });
     }
