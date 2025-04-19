@@ -1319,7 +1319,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(401).json({ message: 'Not authenticated' });
       }
 
-      const timelineId = parseInt(req.params.timelineId, 10);
+      const timelineId = parseInt(req.params.timelineId);
       if (isNaN(timelineId)) {
         return res.status(400).json({ message: 'Invalid timeline ID' });
       }
@@ -1330,33 +1330,20 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'Invalid or empty image ID array' });
       }
 
-      // Get all timeline images first to validate ownership
-      const existingImages = await db
-        .select()
-        .from(timelineImages)
-        .where(eq(timelineImages.timelineId, timelineId));
-
-      if (existingImages.length === 0) {
-        return res.status(404).json({ message: 'No images found for this timeline' });
-      }
-
-      // Reorder each image 
+      // Update each image individually with a raw SQL query to avoid issues with the "order" keyword
       for (let i = 0; i < imageIds.length; i++) {
-        const imageId = parseInt(String(imageIds[i]), 10);
-        
-        if (isNaN(imageId)) {
-          return res.status(400).json({ 
-            message: `Invalid image ID at position ${i}` 
-          });
+        try {
+          // Use raw SQL with explicit quoting for the "order" column name
+          await db.execute(sql`
+            UPDATE "timelineImages" 
+            SET "order" = ${i} 
+            WHERE "id" = ${parseInt(String(imageIds[i]))} 
+            AND "timelineId" = ${timelineId}
+          `);
+        } catch (err) {
+          console.error(`Error updating image order:`, err);
+          return res.status(500).json({ message: 'Failed to update timeline image' });
         }
-        
-        // Use simplest query possible: just update the order
-        await db.execute(sql`
-          UPDATE "timelineImages" 
-          SET "order" = ${i} 
-          WHERE "id" = ${imageId} 
-          AND "timelineId" = ${timelineId}
-        `);
       }
 
       // Get the updated images
