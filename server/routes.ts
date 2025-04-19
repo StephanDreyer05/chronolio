@@ -1319,13 +1319,9 @@ export function registerRoutes(app: Express): Server {
         return res.status(401).json({ message: 'Not authenticated' });
       }
 
-      // Parse and validate timelineId as integer - CRITICAL FIX
-      const rawTimelineId = req.params.timelineId;
-      const timelineId = parseInt(rawTimelineId, 10);
-      
+      const timelineId = parseInt(req.params.timelineId, 10);
       if (isNaN(timelineId)) {
-        console.error(`Invalid timelineId: "${rawTimelineId}"`);
-        return res.status(400).json({ message: 'Invalid timeline ID format' });
+        return res.status(400).json({ message: 'Invalid timeline ID' });
       }
 
       const { imageIds } = req.body;
@@ -1333,73 +1329,37 @@ export function registerRoutes(app: Express): Server {
       if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
         return res.status(400).json({ message: 'Invalid or empty image ID array' });
       }
-      
-      // Validate and parse all image IDs
-      const validatedImageIds = imageIds.map(id => {
-        const parsedId = parseInt(String(id), 10);
-        if (isNaN(parsedId) || parsedId <= 0) {
-          console.error(`Invalid image ID: "${id}"`);
-          return null;
-        }
-        return parsedId;
-      }).filter(id => id !== null);
-      
-      if (validatedImageIds.length !== imageIds.length) {
-        return res.status(400).json({ message: 'One or more invalid image IDs detected' });
-      }
-      
-      // Check timeline ownership
-      const [timeline] = await db
-        .select()
-        .from(timelines)
-        .where(and(
-          eq(timelines.id, timelineId),
-          eq(timelines.userId, req.user.id)
-        ));
-        
-      if (!timeline) {
-        return res.status(404).json({ message: 'Timeline not found' });
-      }
-      
-      // Verify the images exist and belong to this timeline
+
+      // Get all timeline images first to validate ownership
       const existingImages = await db
         .select()
         .from(timelineImages)
-        .where(and(
-          inArray(timelineImages.id, validatedImageIds),
-          eq(timelineImages.timelineId, timelineId)
-        ));
-      
-      if (existingImages.length !== validatedImageIds.length) {
-        return res.status(400).json({ 
-          message: 'One or more image IDs are invalid or do not belong to this timeline'
-        });
+        .where(eq(timelineImages.timelineId, timelineId));
+
+      if (existingImages.length === 0) {
+        return res.status(404).json({ message: 'No images found for this timeline' });
       }
 
-      // Update each image's order using a new approach
-      for (let i = 0; i < validatedImageIds.length; i++) {
-        const imageId = validatedImageIds[i];
-        const orderValue = i;
+      // Reorder each image 
+      for (let i = 0; i < imageIds.length; i++) {
+        const imageId = parseInt(String(imageIds[i]), 10);
         
-        // Using direct raw SQL query with explicit type casting to avoid NaN issues
-        const updateQuery = `
-          UPDATE "timelineImages" 
-          SET "order" = ${orderValue}::integer, 
-              "updatedAt" = NOW(), 
-              "last_modified" = NOW() 
-          WHERE "id" = ${imageId}::integer 
-          AND "timelineId" = ${timelineId}::integer
-        `;
-        
-        try {
-          await db.execute(sql.raw(updateQuery));
-        } catch (err) {
-          console.error(`Failed to update image ${imageId}:`, err);
-          return res.status(500).json({ message: 'Failed to update timeline image' });
+        if (isNaN(imageId)) {
+          return res.status(400).json({ 
+            message: `Invalid image ID at position ${i}` 
+          });
         }
+        
+        // Use simplest query possible: just update the order
+        await db.execute(sql`
+          UPDATE "timelineImages" 
+          SET "order" = ${i} 
+          WHERE "id" = ${imageId} 
+          AND "timelineId" = ${timelineId}
+        `);
       }
 
-      // Get the updated images after reordering
+      // Get the updated images
       const updatedImages = await db
         .select()
         .from(timelineImages)
