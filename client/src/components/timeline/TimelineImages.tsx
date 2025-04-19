@@ -12,6 +12,7 @@ import { useDrag, useDrop } from 'react-dnd';
 import { fetchWithAuth } from "../../lib/api";
 import { uploadToS3, deleteFromS3, extractS3KeyFromUrl } from '../../lib/s3Service';
 import { useS3Image } from '../../hooks/useS3Image';
+import React from 'react';
 
 interface TimelineImage {
   id: number;
@@ -164,25 +165,64 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
         throw new Error('Invalid image IDs provided for reordering');
       }
       
-      // Validate that we have all numeric IDs
-      if (imageIds.some(id => typeof id !== 'number' || isNaN(id) || id <= 0)) {
-        throw new Error('Some image IDs are invalid');
-      }
+      // Try different payload formats since we're not sure which one the server expects
       
-      console.log('Sending reorder request with IDs:', imageIds);
+      // Format 1: Array of objects with id and order
+      const structuredPayload = {
+        imageIds: imageIds.map((id, index) => ({
+          id,
+          order: index
+        }))
+      };
       
-      const requestBody = { imageIds };
+      // Format 2: Simple array of IDs
+      const simplePayload = { imageIds };
+      
+      // Format 3: Object with ID keys and order values (common pattern)
+      const orderMapPayload = {
+        orders: Object.fromEntries(imageIds.map((id, index) => [id, index]))
+      };
+      
+      console.log('Attempting image reorder with multiple payload formats');
       
       try {
-        const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
+        // First try with the structured payload format
+        console.log('Trying format 1:', structuredPayload);
+        let response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(requestBody),
+          body: JSON.stringify(structuredPayload),
         });
         
-        // Handle non-OK responses
+        // If that fails, try with the simpler format
+        if (!response.ok && response.status === 500) {
+          console.log('Format 1 failed, trying format 2:', simplePayload);
+          
+          response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(simplePayload),
+          });
+          
+          // If that also fails, try the order map format
+          if (!response.ok && response.status === 500) {
+            console.log('Format 2 failed, trying format 3:', orderMapPayload);
+            
+            response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(orderMapPayload),
+            });
+          }
+        }
+        
+        // Handle non-OK responses after all attempts
         if (!response.ok) {
           let errorMessage = `Server returned ${response.status}`;
           
@@ -197,10 +237,10 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
           throw new Error(`Failed to reorder images: ${errorMessage}`);
         }
         
-        // Parse and return the response data
+        console.log('Reorder successful with status:', response.status);
         return response.json();
       } catch (error) {
-        console.error('Reorder request failed:', error);
+        console.error('Reorder request failed after all attempts:', error);
         throw error;
       }
     },
@@ -232,6 +272,9 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
     },
   });
 
+  // Add a reference to store the timeout ID for debouncing
+  const reorderTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
   const moveImage = (dragIndex: number, hoverIndex: number) => {
     // Validate indices to prevent out-of-bounds errors
     if (dragIndex < 0 || dragIndex >= images.length || hoverIndex < 0 || hoverIndex >= images.length) {
@@ -253,21 +296,28 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
       // Update local state immediately for responsive UI
       setImages(updatedImages);
       
-      // Collect all image IDs in the new order
-      const imageIds = updatedImages.map(img => {
-        // Ensure we have valid numbers by explicitly using Number rather than parseInt
-        const id = Number(img.id);
+      // Clear any existing timeout to avoid multiple API calls
+      if (reorderTimeoutRef.current) {
+        clearTimeout(reorderTimeoutRef.current);
+      }
+      
+      // Set a new timeout to debounce the API call (wait 800ms before sending)
+      reorderTimeoutRef.current = setTimeout(() => {
+        const imageIds = updatedImages.map(img => Number(img.id));
         
-        // Validate each ID
-        if (isNaN(id) || id <= 0) {
-          throw new Error(`Invalid image ID detected: ${img.id}`);
+        // Only send valid IDs
+        if (imageIds.some(id => isNaN(id) || id <= 0)) {
+          console.error('Some image IDs are invalid, skipping reorder request');
+          return;
         }
         
-        return id;
-      });
+        // Trigger the mutation with the updated order
+        reorderMutation.mutate(imageIds);
+        
+        // Clear the reference
+        reorderTimeoutRef.current = null;
+      }, 800);
       
-      // Send the reorder request to the backend
-      reorderMutation.mutate(imageIds);
     } catch (error) {
       console.error('Error during image reordering:', error);
       
