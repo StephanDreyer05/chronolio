@@ -160,37 +160,57 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
 
   const reorderMutation = useMutation({
     mutationFn: async (imageIds: number[]) => {
-      console.log('Sending reorder request with IDs:', imageIds);
-      console.log('ID types:', imageIds.map(id => typeof id));
-      
-      const requestBody = { imageIds };
-      console.log('Request body:', JSON.stringify(requestBody));
-      
-      const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody),
-      });
-      
-      if (!response.ok) {
-        let error;
-        try {
-          error = await response.json();
-        } catch (e) {
-          error = { message: await response.text() };
-        }
-        console.error('Reorder response error:', response.status, error);
-        throw new Error(error.message || 'Failed to reorder images');
+      if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
+        throw new Error('Invalid image IDs provided for reordering');
       }
       
-      console.log('Reorder successful, response status:', response.status);
-      return response.json();
+      // Validate that we have all numeric IDs
+      if (imageIds.some(id => typeof id !== 'number' || isNaN(id) || id <= 0)) {
+        throw new Error('Some image IDs are invalid');
+      }
+      
+      console.log('Sending reorder request with IDs:', imageIds);
+      
+      const requestBody = { imageIds };
+      
+      try {
+        const response = await fetchWithAuth(`/api/timelines/${timelineId}/images/reorder`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody),
+        });
+        
+        // Handle non-OK responses
+        if (!response.ok) {
+          let errorMessage = `Server returned ${response.status}`;
+          
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+          } catch (e) {
+            // If can't parse JSON, try to get text
+            errorMessage = await response.text() || errorMessage;
+          }
+          
+          throw new Error(`Failed to reorder images: ${errorMessage}`);
+        }
+        
+        // Parse and return the response data
+        return response.json();
+      } catch (error) {
+        console.error('Reorder request failed:', error);
+        throw error;
+      }
     },
     onSuccess: (newImages) => {
+      // Update local state with the server response
       setImages(newImages);
+      
+      // Invalidate the query cache to ensure data consistency
       queryClient.invalidateQueries({ queryKey: [`/api/timelines/${timelineId}/images`] });
+      
       toast({
         title: "Success",
         description: "Images reordered successfully",
@@ -198,47 +218,68 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
     },
     onError: (error) => {
       console.error('Reorder mutation error:', error);
+      
+      // Revert to the original state if available
+      if (fetchedImages) {
+        setImages(fetchedImages);
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to reorder images",
+        description: error instanceof Error ? error.message : "Failed to reorder images",
         variant: "destructive",
       });
     },
   });
 
   const moveImage = (dragIndex: number, hoverIndex: number) => {
-    // Validate indices
+    // Validate indices to prevent out-of-bounds errors
     if (dragIndex < 0 || dragIndex >= images.length || hoverIndex < 0 || hoverIndex >= images.length) {
       console.error('Invalid drag or hover index:', { dragIndex, hoverIndex, imagesLength: images.length });
       return;
     }
     
-    const draggedImage = images[dragIndex];
-    const newImages = [...images];
-    newImages.splice(dragIndex, 1);
-    newImages.splice(hoverIndex, 0, draggedImage);
-    setImages(newImages);
-    
-    // Extract image IDs and ensure they are valid integers
-    const imageIds = newImages.map(img => {
-      // Parse the ID and ensure it's a valid integer
-      const id = parseInt(String(img.id), 10);
-      if (isNaN(id) || id <= 0) {
-        console.error('Invalid image ID detected:', img.id);
-        return null;
-      }
-      return id;
-    }).filter(id => id !== null) as number[];
-    
-    // Only send the request if all IDs are valid
-    if (imageIds.length === newImages.length) {
-      console.log('Sending imageIds to reorderMutation:', imageIds);
+    try {
+      // Create a new array to avoid mutating the original state
+      const updatedImages = [...images];
+      
+      // Remove the dragged item from the array
+      const draggedImage = updatedImages[dragIndex];
+      updatedImages.splice(dragIndex, 1);
+      
+      // Insert it at the new position
+      updatedImages.splice(hoverIndex, 0, draggedImage);
+      
+      // Update local state immediately for responsive UI
+      setImages(updatedImages);
+      
+      // Collect all image IDs in the new order
+      const imageIds = updatedImages.map(img => {
+        // Ensure we have valid numbers by explicitly using Number rather than parseInt
+        const id = Number(img.id);
+        
+        // Validate each ID
+        if (isNaN(id) || id <= 0) {
+          throw new Error(`Invalid image ID detected: ${img.id}`);
+        }
+        
+        return id;
+      });
+      
+      // Send the reorder request to the backend
       reorderMutation.mutate(imageIds);
-    } else {
-      console.error('Detected invalid image IDs, aborting reorder request');
+    } catch (error) {
+      console.error('Error during image reordering:', error);
+      
+      // If anything went wrong, revert to the original state
+      if (fetchedImages) {
+        setImages(fetchedImages);
+      }
+      
+      // Notify the user
       toast({
         title: "Error",
-        description: "Failed to reorder images due to invalid data",
+        description: error instanceof Error ? error.message : "Failed to reorder images",
         variant: "destructive",
       });
     }

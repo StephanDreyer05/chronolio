@@ -1320,7 +1320,6 @@ export function registerRoutes(app: Express): Server {
       }
 
       const timelineId = parseInt(req.params.timelineId);
-      console.log(`[Reorder Debug] Parsed timelineId: ${timelineId} (type: ${typeof timelineId})`);
       if (isNaN(timelineId)) {
         return res.status(400).json({ message: 'Invalid timeline ID' });
       }
@@ -1331,30 +1330,18 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'Invalid or empty image ID array' });
       }
 
-      console.log(`[Reorder Debug] Received imageIds: ${JSON.stringify(imageIds)}`);
-
       // Update each image individually with a raw SQL query to avoid issues with the "order" keyword
       for (let i = 0; i < imageIds.length; i++) {
         try {
-          const currentImageId = Number(imageIds[i]); // Ensure number type
-          const orderIndex = i;
-          
-          console.log(`[Reorder Debug] Processing iteration ${i}: timelineId=${timelineId}, imageId=${currentImageId}, order=${orderIndex}`);
-
-          if (isNaN(currentImageId)) {
-            console.error(`[Reorder Error] Invalid imageId: ${imageIds[i]}`);
-            return res.status(400).json({ message: 'Invalid image ID in array' });
-          }
-
           // Use raw SQL with explicit quoting for the "order" column name
           await db.execute(sql`
             UPDATE "timelineImages" 
-            SET "order" = ${orderIndex} 
-            WHERE "id" = ${currentImageId} 
+            SET "order" = ${i} 
+            WHERE "id" = ${parseInt(String(imageIds[i]))} 
             AND "timelineId" = ${timelineId}
           `);
         } catch (err) {
-          console.error(`[Reorder DB Error] Failed on iteration ${i}:`, err);
+          console.error(`Error updating image order:`, err);
           return res.status(500).json({ message: 'Failed to update timeline image' });
         }
       }
@@ -1368,7 +1355,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json(updatedImages);
     } catch (error) {
-      console.error('[Reorder Outer Catch] Error occurred during reorder processing:', error);
+      console.error('Error reordering timeline images:', error);
       res.status(500).json({ message: 'Failed to reorder images' });
     }
   });

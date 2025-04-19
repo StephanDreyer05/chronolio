@@ -10,8 +10,9 @@ import path from 'path';
 console.log('🚀 Starting Chronolio build for Vercel deployment...');
 
 try {
-  // Skip redundant install as it's already done in vercel.json buildCommand
-  console.log('📦 Using dependencies installed via buildCommand...');
+  // Install dependencies
+  console.log('📦 Installing dependencies...');
+  execSync('npm install', { stdio: 'inherit' });
   
   // Build frontend with Vite
   console.log('🏗️ Building frontend with Vite...');
