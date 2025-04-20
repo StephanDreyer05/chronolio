@@ -25,6 +25,9 @@ interface ContactType {
     defaultValue?: string | number | boolean | null;
     order?: number;
   }>;
+  last_modified?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface SettingsState {
@@ -43,6 +46,8 @@ interface SettingsState {
   exportFooterText: string;
   isLoading: boolean;
   error: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const initialState: SettingsState = {
@@ -94,6 +99,18 @@ export const { setSettings, setLoading, setError } = settingsSlice.actions;
 // Add a variable to track the last fetch time
 let lastFetchTime = 0;
 const FETCH_COOLDOWN = 2000; // 2 seconds cooldown between fetches
+
+// Helper function to safely convert a value to an ISO date string
+const safeISODate = (value: any): string | undefined => {
+  if (!value) return undefined;
+  
+  try {
+    return new Date(value).toISOString();
+  } catch (error) {
+    console.error('Invalid date value:', value);
+    return undefined;
+  }
+};
 
 // Thunk for fetching settings
 export const fetchSettings = () => async (dispatch: any) => {
@@ -177,6 +194,11 @@ export const updateSettingsApi = (settings: Partial<SettingsState>) => async (di
       // Convert contactTypes to vendorTypes for backward compatibility with API
       vendorTypes: settings.contactTypes?.map(contactType => ({
         ...contactType,
+        // Fix date format issues - ensure last_modified is a valid date string
+        last_modified: safeISODate(contactType.last_modified) || new Date().toISOString(),
+        // Ensure createdAt and updatedAt are valid date strings
+        createdAt: safeISODate(contactType.createdAt),
+        updatedAt: safeISODate(contactType.updatedAt),
         customFields: contactType.customFields?.map(field => ({
           ...field,
           defaultValue: field.defaultValue ?? null,
@@ -184,7 +206,10 @@ export const updateSettingsApi = (settings: Partial<SettingsState>) => async (di
         }))
       })) || [],
       defaultTimelineViewType: settings.defaultTimelineViewType || 'list',
-      exportFooterText: settings.exportFooterText || ''
+      exportFooterText: settings.exportFooterText || '',
+      // Ensure any date fields are properly formatted
+      createdAt: safeISODate(settings.createdAt),
+      updatedAt: new Date().toISOString()
     };
 
     const response = await fetchWithAuth('/api/settings', {
