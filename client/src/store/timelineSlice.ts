@@ -167,19 +167,37 @@ const timelineSlice = createSlice({
       state.past.push([...state.items]);
       state.items = state.items.map(item => {
         if (state.selectedItems.includes(item.id)) {
-          const [hours, minutes] = item.startTime.split(':').map(Number);
-          let totalMinutes = hours * 60 + minutes + action.payload.minutes;
+          // Update start time
+          const [startHours, startMinutes] = item.startTime.split(':').map(Number);
+          let startTotalMinutes = startHours * 60 + startMinutes + action.payload.minutes;
 
           // Handle day wrapping
-          while (totalMinutes < 0) totalMinutes += 24 * 60;
-          totalMinutes = totalMinutes % (24 * 60);
+          while (startTotalMinutes < 0) startTotalMinutes += 24 * 60;
+          startTotalMinutes = startTotalMinutes % (24 * 60);
 
-          const newHours = Math.floor(totalMinutes / 60);
-          const newMinutes = totalMinutes % 60;
+          const newStartHours = Math.floor(startTotalMinutes / 60);
+          const newStartMinutes = startTotalMinutes % 60;
+          const newStartTime = `${String(newStartHours).padStart(2, '0')}:${String(newStartMinutes).padStart(2, '0')}`;
+
+          // Update end time if present
+          let newEndTime = item.endTime;
+          if (item.endTime && item.endTime.includes(':')) {
+            const [endHours, endMinutes] = item.endTime.split(':').map(Number);
+            let endTotalMinutes = endHours * 60 + endMinutes + action.payload.minutes;
+            
+            // Handle day wrapping
+            while (endTotalMinutes < 0) endTotalMinutes += 24 * 60;
+            endTotalMinutes = endTotalMinutes % (24 * 60);
+            
+            const newEndHours = Math.floor(endTotalMinutes / 60);
+            const newEndMinutes = endTotalMinutes % 60;
+            newEndTime = `${String(newEndHours).padStart(2, '0')}:${String(newEndMinutes).padStart(2, '0')}`;
+          }
 
           return {
             ...item,
-            startTime: `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`
+            startTime: newStartTime,
+            endTime: newEndTime
           };
         }
         return item;
