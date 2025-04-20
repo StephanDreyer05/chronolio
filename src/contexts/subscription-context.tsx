@@ -188,7 +188,36 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   // Check if subscription is active
   const isSubscriptionActive = (): boolean => {
     if (!userSubscription) return false;
-    return ['active', 'on_trial'].includes(userSubscription.status);
+    
+    // First check if status is active
+    if (userSubscription.status === 'active') return true;
+    
+    // For trial subscriptions, we need to also check if the trial period has ended
+    if (userSubscription.status === 'on_trial') {
+      // If we have a currentPeriodEnd date, check if it's in the past
+      // This safeguards against cases where the backend hasn't updated the status yet
+      if (userSubscription.currentPeriodEnd) {
+        const now = new Date();
+        const trialEndDate = new Date(userSubscription.currentPeriodEnd);
+        
+        // If trial end date is in the past, subscription may not be active
+        // The backend will check with LemonSqueezy to determine if payment went through
+        if (trialEndDate < now) {
+          console.log('Trial period has ended, subscription might be in transition state');
+          // Trial has ended - subscription might be in process of converting to active
+          // or might be expiring. We'll treat it as active and let server-side checks
+          // update the actual status on next refresh
+          return true;
+        }
+      }
+      
+      // If trial end date is in the future or not set, trial is still active
+      return true;
+    }
+    
+    // For all other statuses (paused, past_due, unpaid, cancelled, expired), check specific rules
+    // Currently we only count 'active' and valid 'on_trial' as active subscriptions
+    return false;
   };
   
   // Check if user is on premium plan

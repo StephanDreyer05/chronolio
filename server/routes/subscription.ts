@@ -6,10 +6,14 @@ import {
   createSubscriptionCheckout,
   handleWebhookEvent,
   updateSubscriptionVariant,
+  checkAndUpdateExpiredTrials,
   type CheckoutUrlResponse,
   type SubscriptionStatus
 } from '../services/payment.js';
 import { getSubscription } from "@lemonsqueezy/lemonsqueezy.js";
+import { db } from "../../db/index.js";
+import { userSubscriptions } from "../../db/schema.js";
+import { eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -241,6 +245,45 @@ router.post('/webhooks', async (req, res) => {
       success: false, 
       message: 'Webhook received but processing failed with error. Event has been logged.' 
     });
+  }
+});
+
+// Check and update expired trials
+router.post('/check-expired-trials', requireAuth, async (req, res) => {
+  try {
+    // Check if user is an admin (adjust as needed based on your user roles system)
+    if (req.user!.role !== 'admin' && req.user!.id !== 1) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+    
+    console.log('Starting check for all expired trial subscriptions');
+    
+    // Get all subscriptions in trial mode
+    const trialSubscriptions = await db.select().from(userSubscriptions)
+      .where(eq(userSubscriptions.status, 'on_trial'));
+    
+    console.log(`Found ${trialSubscriptions.length} subscriptions in trial mode`);
+    
+    // Process each subscription
+    const results = [];
+    for (const subscription of trialSubscriptions) {
+      const wasUpdated = await checkAndUpdateExpiredTrials(subscription.userId);
+      results.push({
+        userId: subscription.userId,
+        subscriptionId: subscription.id,
+        wasUpdated
+      });
+    }
+    
+    // Return results
+    res.json({
+      message: `Processed ${trialSubscriptions.length} trial subscriptions`,
+      updatedCount: results.filter(r => r.wasUpdated).length,
+      results
+    });
+  } catch (error: any) {
+    console.error('Error checking expired trials:', error);
+    res.status(500).json({ error: error.message || 'Failed to check expired trials' });
   }
 });
 

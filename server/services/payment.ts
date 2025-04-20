@@ -697,13 +697,10 @@ export const handleWebhookEvent = async (event: any) => {
           return false;
         }
         
-        // Create a safe subscription ID string
-        const subscriptionId = String(subscription.id);
-        
         // Update the subscription in our database
         await updateSubscriptionStatus(
           userId,
-          subscriptionId,
+          subscription.id.toString(),
           status,
           planResult[0].id,
           variantResult[0].id,
@@ -757,6 +754,100 @@ export const handleWebhookEvent = async (event: any) => {
     return true;
   } catch (error) {
     console.error("Error handling webhook event:", error);
+    return false;
+  }
+};
+
+/**
+ * Check if a user's subscription trial has ended and update accordingly
+ */
+export const checkAndUpdateExpiredTrials = async (userId: number): Promise<boolean> => {
+  try {
+    // Get the user's current subscription
+    const subscription = await getUserSubscription(userId);
+    
+    // If no subscription or not in trial mode, nothing to do
+    if (!subscription || subscription.status !== 'on_trial') {
+      return false;
+    }
+    
+    // Check if the trial has ended (current_period_end is in the past)
+    const now = new Date();
+    const trialEndDate = subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd) : null;
+    
+    if (!trialEndDate || trialEndDate > now) {
+      // Trial hasn't ended yet
+      return false;
+    }
+    
+    console.log(`Found expired trial for user ${userId}, checking LemonSqueezy for current status`);
+    
+    // Trial has ended, query LemonSqueezy for the current subscription status
+    if (!subscription.lemonSqueezySubscriptionId) {
+      console.error(`Subscription for user ${userId} lacks a LemonSqueezy ID`);
+      return false;
+    }
+    
+    // Use Lemon Squeezy API to get current subscription status
+    const headers = {
+      'Accept': 'application/vnd.api+json',
+      'Content-Type': 'application/vnd.api+json',
+      'Authorization': `Bearer ${process.env.LEMON_SQUEEZY_API_KEY}`
+    };
+    
+    const response = await fetch(`https://api.lemonsqueezy.com/v1/subscriptions/${subscription.lemonSqueezySubscriptionId}`, {
+      method: 'GET',
+      headers
+    });
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch subscription from LemonSqueezy: ${response.status} ${response.statusText}`);
+      return false;
+    }
+    
+    const lsResponse = await response.json();
+    
+    // Extract subscription data from the response
+    if (!lsResponse.data || !lsResponse.data.attributes) {
+      console.error('Invalid response format from LemonSqueezy API');
+      return false;
+    }
+    
+    const lsSubscription = lsResponse.data;
+    const status = lsSubscription.attributes.status;
+    
+    console.log(`LemonSqueezy reports subscription status as: ${status}`);
+    
+    // If status has changed, update our database
+    if (status !== subscription.status) {
+      console.log(`Updating subscription status from ${subscription.status} to ${status}`);
+      
+      // Calculate period dates based on LemonSqueezy data
+      const periodStart = lsSubscription.attributes.renews_at ? 
+        new Date(lsSubscription.attributes.created_at || new Date()) : 
+        null;
+        
+      const periodEnd = lsSubscription.attributes.renews_at ? 
+        new Date(lsSubscription.attributes.renews_at) : 
+        null;
+      
+      // Update the subscription status in our database
+      await db.update(userSubscriptions)
+        .set({
+          status,
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
+          trialEndsAt: null, // Trial is over
+          updatedAt: new Date(),
+        })
+        .where(eq(userSubscriptions.id, subscription.id));
+      
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error("Error checking and updating expired trials:", error);
     return false;
   }
 };

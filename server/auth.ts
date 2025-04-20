@@ -16,6 +16,7 @@ import {
   sendVerificationEmail,
   sendPasswordResetEmail
 } from "./services/email.js";
+import { checkAndUpdateExpiredTrials } from "./services/payment.js";
 const { Pool } = pkg;
 
 // Initialize email service
@@ -325,7 +326,7 @@ export function setupAuth(app: Express) {
         return res.status(401).json({ message: info?.message || "Authentication failed" });
       }
       
-      req.login(user, (loginErr) => {
+      req.login(user, async (loginErr) => {
         if (loginErr) {
           console.error('[Auth Debug] Session creation error:', loginErr);
           return next(loginErr);
@@ -334,6 +335,14 @@ export function setupAuth(app: Express) {
         console.log('[Auth Debug] Login successful for user:', user.id);
         console.log('[Auth Debug] Session created:', req.sessionID);
         console.log('[Auth Debug] isAuthenticated:', req.isAuthenticated());
+        
+        // Check if the user has an expired trial subscription and update if needed
+        try {
+          await checkAndUpdateExpiredTrials(user.id);
+        } catch (error) {
+          console.error('Error checking subscription trial status:', error);
+          // Continue login process even if subscription check fails
+        }
         
         return res.json({ 
           message: "Logged in successfully",
