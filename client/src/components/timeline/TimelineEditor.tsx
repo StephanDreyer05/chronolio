@@ -454,6 +454,34 @@ const CategoryItem = ({
   );
 };
 
+// Helper component to ensure time adjustment clicks don't cause form submissions
+const TimeAdjustmentButton = ({ minutes, isEarlier, onTimeShift }: { 
+  minutes: number, 
+  isEarlier: boolean, 
+  onTimeShift: (minutes: { minutes: number }) => void 
+}) => {
+  const handleClick = (e: React.MouseEvent) => {
+    // Prevent all possible default behaviors
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Call the time shift with the appropriate sign
+    const adjustedMinutes = isEarlier ? -minutes : minutes;
+    onTimeShift({ minutes: adjustedMinutes });
+    
+    return false;
+  };
+  
+  return (
+    <div 
+      onClick={handleClick} 
+      className="relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground"
+    >
+      {minutes} minutes {isEarlier ? 'earlier' : 'later'}
+    </div>
+  );
+};
+
 const BulkEditControls = ({
   onTimeShift,
   timeAdjustments,
@@ -503,21 +531,22 @@ const BulkEditControls = ({
           <div className="grid grid-cols-2 gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full">
+                <Button variant="outline" size="sm" className="w-full" type="button">
                   <ChevronLeft className="h-4 w-4 mr-1 text-purple-600" />
                   Earlier
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
+              <DropdownMenuContent onClick={e => e.preventDefault()}>
                 {timeAdjustments.map((minutes) => (
                   <DropdownMenuItem
                     key={`earlier-${minutes}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onTimeShift({ minutes: -minutes });
-                    }}
+                    onSelect={(e) => e.preventDefault()}
                   >
-                    {minutes} minutes earlier
+                    <TimeAdjustmentButton 
+                      minutes={minutes} 
+                      isEarlier={true} 
+                      onTimeShift={onTimeShift} 
+                    />
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -525,21 +554,22 @@ const BulkEditControls = ({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full">
+                <Button variant="outline" size="sm" className="w-full" type="button">
                   Later
                   <ChevronRight className="h-4 w-4 ml-1 text-purple-600" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
+              <DropdownMenuContent onClick={e => e.preventDefault()}>
                 {timeAdjustments.map((minutes) => (
                   <DropdownMenuItem
                     key={`later-${minutes}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onTimeShift({ minutes });
-                    }}
+                    onSelect={(e) => e.preventDefault()}
                   >
-                    {minutes} minutes later
+                    <TimeAdjustmentButton 
+                      minutes={minutes} 
+                      isEarlier={false} 
+                      onTimeShift={onTimeShift} 
+                    />
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -4763,20 +4793,9 @@ export function TimelineEditor({
       variant: "default",
     });
 
-    // Save changes to database if not in template mode
-    if (!isTemplate && saveTimeline) {
-      try {
-        await saveTimeline();
-        console.log('Timeline saved after bulk edit');
-      } catch (error) {
-        console.error('Error saving timeline after bulk edit:', error);
-        toast({
-          title: "Error",
-          description: "Changes were made locally but failed to save to the server",
-          variant: "destructive",
-        });
-      }
-    }
+    // Note: We're intentionally NOT saving to the database here to avoid navigation
+    // Changes exist in Redux state but won't persist if page is reloaded
+    console.log('Timeline items adjusted in local state');
   };
   
   // Function to handle selecting all items in a category
