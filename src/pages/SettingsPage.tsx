@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { MainNav } from "../components/MainNav";
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -85,6 +85,149 @@ interface EventType {
   }>;
 }
 
+const UserProfile = () => {
+  const { user } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const hasRefreshedRef = useRef(false);
+
+  // Refresh user data ONLY ONCE when component mounts
+  useEffect(() => {
+    if (!hasRefreshedRef.current) {
+      try {
+        // Invalidate and refetch user data to ensure we have the latest info
+        queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+        hasRefreshedRef.current = true;
+      } catch (error) {
+        console.error('Error refreshing user data:', error);
+      }
+    }
+  }, [queryClient]);
+  
+  const form = useForm({
+    defaultValues: {
+      username: user?.username || '',
+      email: user?.email || '',
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
+  });
+
+  const onSubmit = async (data: any) => {
+    try {
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+
+      toast({
+        title: 'Profile Updated',
+        description: 'Your profile has been successfully updated.',
+      });
+      setIsEditing(false);
+    } catch (error) {
+      toast({
+        title: 'Update Failed',
+        description: error instanceof Error ? error.message : 'Failed to update profile',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>User Profile</CardTitle>
+        <CardDescription>
+          Manage your account settings and change your password
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!isEditing ? (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-medium">Account Information</h3>
+              <p className="text-sm text-muted-foreground">
+                Username: {user?.username}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Email: {user?.email}
+                {user?.isEmailVerified ? (
+                  <span className="ml-2 text-green-500 text-xs">(Verified)</span>
+                ) : (
+                  <span className="ml-2 text-amber-500 text-xs">(Not Verified)</span>
+                )}
+              </p>
+            </div>
+            <Button onClick={() => setIsEditing(true)} className="w-full sm:w-auto">
+              Edit Profile
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                {...form.register('username')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                {...form.register('email')}
+                type="email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                {...form.register('currentPassword')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                {...form.register('newPassword')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                {...form.register('confirmPassword')}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsEditing(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 // Subscription management component
 const SubscriptionSection = () => {
   // Add try/catch to handle case where context isn't ready
@@ -125,14 +268,18 @@ const SubscriptionSection = () => {
   const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const { toast } = useToast();
+  const hasRefreshedRef = useRef(false);
 
-  // Refresh subscription data when component mounts
+  // Refresh subscription data ONLY ONCE when component mounts
   useEffect(() => {
-    try {
-      // Ensure we have the latest subscription data
-      fetchUserSubscription();
-    } catch (error) {
-      console.error('Error refreshing subscription data:', error);
+    if (!hasRefreshedRef.current) {
+      try {
+        // Ensure we have the latest subscription data
+        fetchUserSubscription();
+        hasRefreshedRef.current = true;
+      } catch (error) {
+        console.error('Error refreshing subscription data:', error);
+      }
     }
   }, [fetchUserSubscription]);
 
@@ -419,145 +566,6 @@ const SubscriptionSection = () => {
               </div>
             )}
           </>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-
-const UserProfile = () => {
-  const { user } = useAuth();
-  const [isEditing, setIsEditing] = useState(false);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  // Refresh user data when component mounts
-  useEffect(() => {
-    try {
-      // Invalidate and refetch user data to ensure we have the latest info
-      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
-    } catch (error) {
-      console.error('Error refreshing user data:', error);
-    }
-  }, [queryClient]);
-  
-  const form = useForm({
-    defaultValues: {
-      username: user?.username || '',
-      email: user?.email || '',
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    },
-  });
-
-  const onSubmit = async (data: any) => {
-    try {
-      const response = await fetch('/api/user/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update profile');
-      }
-
-      toast({
-        title: 'Profile Updated',
-        description: 'Your profile has been successfully updated.',
-      });
-      setIsEditing(false);
-    } catch (error) {
-      toast({
-        title: 'Update Failed',
-        description: error instanceof Error ? error.message : 'Failed to update profile',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>User Profile</CardTitle>
-        <CardDescription>
-          Manage your account settings and change your password
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {!isEditing ? (
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-medium">Account Information</h3>
-              <p className="text-sm text-muted-foreground">
-                Username: {user?.username}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Email: {user?.email}
-                {user?.isEmailVerified ? (
-                  <span className="ml-2 text-green-500 text-xs">(Verified)</span>
-                ) : (
-                  <span className="ml-2 text-amber-500 text-xs">(Not Verified)</span>
-                )}
-              </p>
-            </div>
-            <Button onClick={() => setIsEditing(true)} className="w-full sm:w-auto">
-              Edit Profile
-            </Button>
-          </div>
-        ) : (
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                {...form.register('username')}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                {...form.register('email')}
-                type="email"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="currentPassword">Current Password</Label>
-              <Input
-                id="currentPassword"
-                type="password"
-                {...form.register('currentPassword')}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="newPassword">New Password</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                {...form.register('newPassword')}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                {...form.register('confirmPassword')}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsEditing(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                Save Changes
-              </Button>
-            </div>
-          </form>
         )}
       </CardContent>
     </Card>

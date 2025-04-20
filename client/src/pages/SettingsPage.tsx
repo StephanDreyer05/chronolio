@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { MainNav } from "@/components/MainNav";
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -88,359 +88,21 @@ interface EventType {
   }>;
 }
 
-// Subscription management component
-const SubscriptionSection = () => {
-  // Add try/catch to handle case where context isn't ready
-  let subscriptionContext = null;
-  try {
-    subscriptionContext = useSubscription();
-  } catch (error) {
-    console.error('Subscription context not available:', error);
-    // Return a loading or fallback state
-    return (
-      <Card className="bg-white dark:bg-zinc-900 border shadow-sm overflow-hidden">
-        <CardHeader>
-          <CardTitle>Subscription</CardTitle>
-          <CardDescription>Manage your subscription plan</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center p-4">
-            <p>Loading subscription information...</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-  
-  // Destructure only if context is available
-  const { 
-    userSubscription, 
-    plans, 
-    isLoading, 
-    createCheckout, 
-    getCustomerPortal,
-    isSubscriptionActive,
-    isPremium,
-    fetchUserSubscription
-  } = subscriptionContext;
-  
-  const { user } = useAuth();
-  const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month');
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const { toast } = useToast();
-
-  // Refresh subscription data when component mounts
-  useEffect(() => {
-    try {
-      // Ensure we have the latest subscription data
-      fetchUserSubscription();
-    } catch (error) {
-      console.error('Error refreshing subscription data:', error);
-    }
-  }, [fetchUserSubscription]);
-
-  const getPlanByInterval = () => {
-    if (!plans || plans.length === 0) return null;
-    
-    // Find the premium plan
-    const premiumPlan = plans.find(plan => plan.name === 'Premium');
-    if (!premiumPlan) return null;
-    
-    // Get the variant based on selected billing interval
-    return premiumPlan.variants.find(variant => variant.interval === billingInterval);
-  };
-  
-  // Use the subscription context to get days left
-  const { getRemainingDays, getTrialDaysLeft } = useSubscription();
-
-  // Helper function to get days left in the current subscription period
-  const daysLeft = () => {
-    return getRemainingDays();
-  };
-
-  // Helper function to get days left in the trial period
-  const trialDaysLeft = () => {
-    return getTrialDaysLeft();
-  };
-  
-  const handleSubscribe = () => {
-    setIsCheckingOut(true);
-    
-    try {
-      // Get the current user's email and ID to pass to the checkout form
-      const userEmail = user?.email || '';
-      const userId = user?.id || '';
-      
-      // Direct checkout URLs provided by the user
-      const MONTHLY_CHECKOUT_URL = 'https://chronolio.lemonsqueezy.com/buy/493c4f30-a5ed-49d5-b2a6-5bc9d874843e';
-      const ANNUAL_CHECKOUT_URL = 'https://chronolio.lemonsqueezy.com/buy/493c4f30-a5ed-49d5-b2a6-5bc9d874843e';
-      
-      // Choose URL based on selected billing interval
-      const baseUrl = billingInterval === 'month' ? MONTHLY_CHECKOUT_URL : ANNUAL_CHECKOUT_URL;
-      
-      // Build full checkout URL with query parameters
-      // 1. Add user email for pre-filling checkout form
-      // 2. Add user ID as custom data for webhooks/API
-      const checkoutUrl = `${baseUrl}?checkout[email]=${encodeURIComponent(userEmail)}&checkout[custom][user_id]=${userId}`;
-      
-      // Redirect to checkout
-      window.location.href = checkoutUrl;
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to start checkout process",
-        variant: "destructive",
-      });
-      setIsCheckingOut(false);
-    }
-  };
-  
-  // Handle managing the subscription through customer portal
-  const [isManagingSubscription, setIsManagingSubscription] = useState(false);
-  
-  const handleManageSubscription = async () => {
-    setIsManagingSubscription(true);
-    try {
-      // Get customer portal URL from Lemon Squeezy
-      const url = await getCustomerPortal();
-      
-      if (url) {
-        // Redirect to customer portal
-        window.location.href = url;
-      } else {
-        throw new Error("Could not access subscription management portal");
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to access subscription management portal",
-        variant: "destructive",
-      });
-    } finally {
-      setIsManagingSubscription(false);
-    }
-  };
-  
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(price / 100);
-  };
-  
-  return (
-    <Card className="bg-white dark:bg-zinc-900 border shadow-sm overflow-hidden">
-      <CardHeader>
-        <CardTitle>Subscription</CardTitle>
-        <CardDescription>Manage your subscription plan</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : (
-          <>
-            {userSubscription ? (
-              <div className="space-y-4">
-                <div className="rounded-lg bg-muted p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">{userSubscription.plan?.name || 'Premium'}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {userSubscription.status === 'on_trial' ? 'Trial Period' : 'Active Subscription'}
-                      </p>
-                    </div>
-                    <Badge 
-                      className={userSubscription.status === 'active' || userSubscription.status === 'on_trial' 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' 
-                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'
-                      }
-                    >
-                      {userSubscription.status === 'on_trial' ? 'Trial' : 
-                       userSubscription.status === 'active' ? 'Active' : 
-                       userSubscription.status === 'cancelled' ? 'Cancelled' : 
-                       userSubscription.status}
-                    </Badge>
-                  </div>
-                </div>
-                
-                {userSubscription.status === 'on_trial' && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 p-4">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
-                      <div>
-                        <h4 className="text-sm font-medium text-amber-900 dark:text-amber-200">Trial Period</h4>
-                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                          Your trial ends in {trialDaysLeft()} days.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {userSubscription.variant && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Plan</span>
-                      <span className="text-sm font-medium">{userSubscription.plan?.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Billing</span>
-                      <span className="text-sm font-medium">
-                        {formatPrice(userSubscription.variant.price)} / 
-                        {userSubscription.variant.interval === 'month' ? 'month' : 'year'}
-                      </span>
-                    </div>
-                    {userSubscription.currentPeriodEnd && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Next billing date</span>
-                        <span className="text-sm font-medium">
-                          {new Date(userSubscription.currentPeriodEnd).toLocaleDateString()} 
-                          <span className="text-xs text-muted-foreground ml-1">({daysLeft()} days left)</span>
-                        </span>
-                      </div>
-                    )}
-                    {userSubscription.status === 'on_trial' && userSubscription.trialEndsAt && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Trial ends</span>
-                        <span className="text-sm font-medium">
-                          {new Date(userSubscription.trialEndsAt).toLocaleDateString()} 
-                          <span className="text-xs text-muted-foreground ml-1">({trialDaysLeft()} days left)</span>
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* Add the Manage Subscription button only for active or on_trial subscriptions */}
-                {(userSubscription.status === 'active' || userSubscription.status === 'on_trial') && 
-                  userSubscription.lemonSqueezySubscriptionId && (
-                  <Button
-                    className="w-full mt-4"
-                    onClick={handleManageSubscription}
-                    disabled={isManagingSubscription}
-                  >
-                    {isManagingSubscription ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Settings2 className="mr-2 h-4 w-4" />
-                        Manage Your Subscription
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800 p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5" />
-                    <div>
-                      <h4 className="text-sm font-medium text-red-900 dark:text-red-200">No Active Subscription</h4>
-                      <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                        If you do have a subscription, please refresh this page. Otherwise subscribe to a plan to access premium features.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <Tabs 
-                    defaultValue="month" 
-                    className="w-full"
-                    onValueChange={(value) => setBillingInterval(value as 'month' | 'year')}
-                  >
-                    <div className="flex justify-center mb-4">
-                      <TabsList>
-                        <TabsTrigger value="month">Monthly</TabsTrigger>
-                        <TabsTrigger value="year">Annual <Badge className="ml-1.5 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">Save 35%</Badge></TabsTrigger>
-                      </TabsList>
-                    </div>
-                  </Tabs>
-                  
-                  <Card className="border-2 border-primary">
-                    <CardHeader>
-                      <CardTitle className="text-xl flex justify-between items-center">
-                        <span>Premium Plan</span>
-                        <Badge className="ml-2 text-xs">Favourite</Badge>
-                      </CardTitle>
-                      <div className="mt-2">
-                        <span className="text-3xl font-bold">
-                          {billingInterval === 'month' ? '$29.00' : '$239.00'}
-                        </span>
-                        <span className="text-muted-foreground ml-1">
-                          /{billingInterval === 'month' ? 'month' : 'year'}
-                        </span>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2 mb-6">
-                        <li className="flex items-center">
-                          <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
-                          <span>Unlimited timelines</span>
-                        </li>
-                        <li className="flex items-center">
-                          <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
-                          <span>Advanced vendor management</span>
-                        </li>
-                        <li className="flex items-center">
-                          <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
-                          <span>Priority customer support</span>
-                        </li>
-                        <li className="flex items-center">
-                          <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
-                          <span>Export to PDF/Excel formats</span>
-                        </li>
-                        <li className="flex items-center">
-                          <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
-                          <span>Advanced AI features</span>
-                        </li>
-                      </ul>
-                      
-                      <Button 
-                        className="w-full" 
-                        onClick={handleSubscribe}
-                        disabled={isCheckingOut}
-                      >
-                        {isCheckingOut ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          'Subscribe Now'
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-
 const UserProfile = () => {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const hasRefreshedRef = useRef(false);
 
-  // Refresh user data when component mounts
   useEffect(() => {
-    try {
-      // Invalidate and refetch user data to ensure we have the latest info
-      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
-    } catch (error) {
-      console.error('Error refreshing user data:', error);
+    if (!hasRefreshedRef.current) {
+      try {
+        queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+        hasRefreshedRef.current = true;
+      } catch (error) {
+        console.error('Error refreshing user data:', error);
+      }
     }
   }, [queryClient]);
   
@@ -567,6 +229,328 @@ const UserProfile = () => {
   );
 };
 
+const SubscriptionSection = () => {
+  let subscriptionContext = null;
+  try {
+    subscriptionContext = useSubscription();
+  } catch (error) {
+    console.error('Subscription context not available:', error);
+    return (
+      <Card className="bg-white dark:bg-zinc-900 border shadow-sm overflow-hidden">
+        <CardHeader>
+          <CardTitle>Subscription</CardTitle>
+          <CardDescription>Manage your subscription plan</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center p-4">
+            <p>Loading subscription information...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  const { 
+    userSubscription, 
+    plans, 
+    isLoading, 
+    createCheckout, 
+    getCustomerPortal,
+    isSubscriptionActive,
+    isPremium,
+    fetchUserSubscription
+  } = subscriptionContext;
+  
+  const { user } = useAuth();
+  const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month');
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const { toast } = useToast();
+  const hasRefreshedRef = useRef(false);
+
+  useEffect(() => {
+    if (!hasRefreshedRef.current) {
+      try {
+        fetchUserSubscription();
+        hasRefreshedRef.current = true;
+      } catch (error) {
+        console.error('Error refreshing subscription data:', error);
+      }
+    }
+  }, [fetchUserSubscription]);
+
+  const getPlanByInterval = () => {
+    if (!plans || plans.length === 0) return null;
+    
+    const premiumPlan = plans.find(plan => plan.name === 'Premium');
+    if (!premiumPlan) return null;
+    
+    return premiumPlan.variants.find(variant => variant.interval === billingInterval);
+  };
+  
+  const { getRemainingDays, getTrialDaysLeft } = useSubscription();
+
+  const daysLeft = () => {
+    return getRemainingDays();
+  };
+
+  const trialDaysLeft = () => {
+    return getTrialDaysLeft();
+  };
+  
+  const handleSubscribe = () => {
+    setIsCheckingOut(true);
+    
+    try {
+      const userEmail = user?.email || '';
+      const userId = user?.id || '';
+      
+      const MONTHLY_CHECKOUT_URL = 'https://chronolio.lemonsqueezy.com/buy/493c4f30-a5ed-49d5-b2a6-5bc9d874843e';
+      const ANNUAL_CHECKOUT_URL = 'https://chronolio.lemonsqueezy.com/buy/493c4f30-a5ed-49d5-b2a6-5bc9d874843e';
+      
+      const baseUrl = billingInterval === 'month' ? MONTHLY_CHECKOUT_URL : ANNUAL_CHECKOUT_URL;
+      
+      const checkoutUrl = `${baseUrl}?checkout[email]=${encodeURIComponent(userEmail)}&checkout[custom][user_id]=${userId}`;
+      
+      window.location.href = checkoutUrl;
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to start checkout process",
+        variant: "destructive",
+      });
+      setIsCheckingOut(false);
+    }
+  };
+  
+  const [isManagingSubscription, setIsManagingSubscription] = useState(false);
+  
+  const handleManageSubscription = async () => {
+    setIsManagingSubscription(true);
+    try {
+      const url = await getCustomerPortal();
+      
+      if (url) {
+        window.location.href = url;
+      } else {
+        throw new Error("Could not access subscription management portal");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to access subscription management portal",
+        variant: "destructive",
+      });
+    } finally {
+      setIsManagingSubscription(false);
+    }
+  };
+  
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(price / 100);
+  };
+  
+  return (
+    <Card className="bg-white dark:bg-zinc-900 border shadow-sm overflow-hidden">
+      <CardHeader>
+        <CardTitle>Subscription</CardTitle>
+        <CardDescription>Manage your subscription plan</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <>
+            {userSubscription ? (
+              <div className="space-y-4">
+                <div className="rounded-lg bg-muted p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium">{userSubscription.plan?.name || 'Premium'}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {userSubscription.status === 'on_trial' ? 'Trial Period' : 'Active Subscription'}
+                      </p>
+                    </div>
+                    <Badge 
+                      className={userSubscription.status === 'active' || userSubscription.status === 'on_trial' 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' 
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'
+                      }
+                    >
+                      {userSubscription.status === 'on_trial' ? 'Trial' : 
+                       userSubscription.status === 'active' ? 'Active' : 
+                       userSubscription.status === 'cancelled' ? 'Cancelled' : 
+                       userSubscription.status}
+                    </Badge>
+                  </div>
+                </div>
+                
+                {userSubscription.status === 'on_trial' && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-medium text-amber-900 dark:text-amber-200">Trial Period</h4>
+                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                          Your trial ends in {trialDaysLeft()} days.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {userSubscription.variant && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Plan</span>
+                      <span className="text-sm font-medium">{userSubscription.plan?.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Billing</span>
+                      <span className="text-sm font-medium">
+                        {formatPrice(userSubscription.variant.price)} / 
+                        {userSubscription.variant.interval === 'month' ? 'month' : 'year'}
+                      </span>
+                    </div>
+                    {userSubscription.currentPeriodEnd && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Next billing date</span>
+                        <span className="text-sm font-medium">
+                          {new Date(userSubscription.currentPeriodEnd).toLocaleDateString()} 
+                          <span className="text-xs text-muted-foreground ml-1">({daysLeft()} days left)</span>
+                        </span>
+                      </div>
+                    )}
+                    {userSubscription.status === 'on_trial' && userSubscription.trialEndsAt && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Trial ends</span>
+                        <span className="text-sm font-medium">
+                          {new Date(userSubscription.trialEndsAt).toLocaleDateString()} 
+                          <span className="text-xs text-muted-foreground ml-1">({trialDaysLeft()} days left)</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {(userSubscription.status === 'active' || userSubscription.status === 'on_trial') && 
+                  userSubscription.lemonSqueezySubscriptionId && (
+                  <Button
+                    className="w-full mt-4"
+                    onClick={handleManageSubscription}
+                    disabled={isManagingSubscription}
+                  >
+                    {isManagingSubscription ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Settings2 className="mr-2 h-4 w-4" />
+                        Manage Your Subscription
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800 p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-medium text-red-900 dark:text-red-200">No Active Subscription</h4>
+                      <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                        If you do have a subscription, please refresh this page. Otherwise subscribe to a plan to access premium features.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <Tabs 
+                    defaultValue="month" 
+                    className="w-full"
+                    onValueChange={(value) => setBillingInterval(value as 'month' | 'year')}
+                  >
+                    <div className="flex justify-center mb-4">
+                      <TabsList>
+                        <TabsTrigger value="month">Monthly</TabsTrigger>
+                        <TabsTrigger value="year">Annual <Badge className="ml-1.5 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">Save 35%</Badge></TabsTrigger>
+                      </TabsList>
+                    </div>
+                  </Tabs>
+                  
+                  <Card className="border-2 border-primary">
+                    <CardHeader>
+                      <CardTitle className="text-xl flex justify-between items-center">
+                        <span>Premium Plan</span>
+                        <Badge className="ml-2 text-xs">Favourite</Badge>
+                      </CardTitle>
+                      <div className="mt-2">
+                        <span className="text-3xl font-bold">
+                          {billingInterval === 'month' ? '$29.00' : '$239.00'}
+                        </span>
+                        <span className="text-muted-foreground ml-1">
+                          /{billingInterval === 'month' ? 'month' : 'year'}
+                        </span>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="space-y-2 mb-6">
+                        <li className="flex items-center">
+                          <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
+                          <span>Unlimited timelines</span>
+                        </li>
+                        <li className="flex items-center">
+                          <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
+                          <span>Advanced vendor management</span>
+                        </li>
+                        <li className="flex items-center">
+                          <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
+                          <span>Priority customer support</span>
+                        </li>
+                        <li className="flex items-center">
+                          <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
+                          <span>Export to PDF/Excel formats</span>
+                        </li>
+                        <li className="flex items-center">
+                          <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
+                          <span>Advanced AI features</span>
+                        </li>
+                      </ul>
+                      
+                      <Button 
+                        className="w-full" 
+                        onClick={handleSubscribe}
+                        disabled={isCheckingOut}
+                      >
+                        {isCheckingOut ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          'Subscribe Now'
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 export default function SettingsPage() {
   const dispatch = useDispatch();
   const [, navigate] = useLocation();
@@ -626,7 +610,6 @@ export default function SettingsPage() {
     defaultValue?: string | number | boolean | null;
   } | null>(null);
   
-  // Fetch latest settings when page loads
   useEffect(() => {
     console.log('SettingsPage: Initial load effect triggered');
     const loadSettings = async () => {
@@ -647,11 +630,9 @@ export default function SettingsPage() {
     loadSettings();
   }, [dispatch]);
 
-  // When settings in Redux store change, update local state
   useEffect(() => {
     console.log('SettingsPage: savedSettings changed, updating local state', savedSettings);
     
-    // Handle error state first
     if (savedSettings.error) {
       toast({
         title: "Error loading settings",
@@ -661,7 +642,6 @@ export default function SettingsPage() {
       return;
     }
     
-    // Only update if settings are loaded and not still loading
     if (!savedSettings.isLoading) {
       setSettings(savedSettings);
       if (savedSettings.theme) {
@@ -670,7 +650,6 @@ export default function SettingsPage() {
     }
   }, [savedSettings, toast]);
 
-  // Show loading state if settings are still loading
   if (savedSettings.isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-zinc-950 flex items-center justify-center">
@@ -682,7 +661,6 @@ export default function SettingsPage() {
     );
   }
 
-  // Show error state if there's an error and no data
   if (savedSettings.error && !savedSettings.eventTypes?.length) {
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-zinc-950 flex items-center justify-center">
@@ -1007,10 +985,8 @@ export default function SettingsPage() {
 
     if (newIndex < 0 || newIndex >= customFields.length) return;
 
-    // Swap the fields
     [customFields[currentIndex], customFields[newIndex]] = [customFields[newIndex], customFields[currentIndex]];
 
-    // Update order properties
     const updatedFields = customFields.map((field, index) => ({
       ...field,
       order: index
@@ -1041,10 +1017,8 @@ export default function SettingsPage() {
 
     if (newIndex < 0 || newIndex >= customFields.length) return;
 
-    // Swap the fields
     [customFields[currentIndex], customFields[newIndex]] = [customFields[newIndex], customFields[currentIndex]];
 
-    // Update order properties
     const updatedFields = customFields.map((field, index) => ({
       ...field,
       order: index
@@ -1451,7 +1425,6 @@ export default function SettingsPage() {
                                       </div>
                                     </div>
 
-                                    {/* Add/Edit custom field form */}
                                     <div className="space-y-4 border-b pb-4">
                                       <h4 className="font-medium">{editingEventField ? 'Edit Field' : 'Add New Field'}</h4>
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1527,7 +1500,6 @@ export default function SettingsPage() {
                                       </div>
                                     </div>
 
-                                    {/* Existing custom fields */}
                                     <div className="space-y-2">
                                       <h4 className="font-medium">Existing Fields</h4>
                                       <div className="space-y-2 max-h-[300px] overflow-y-auto">
@@ -1774,7 +1746,6 @@ export default function SettingsPage() {
           </div>
         </main>
 
-        {/* Custom Fields Dialog for Contact Types */}
         <Dialog open={vendorCustomFieldsDialogOpen} onOpenChange={(open) => {
           if (!open) {
             setEditingVendorCustomFields(null);
@@ -1790,7 +1761,6 @@ export default function SettingsPage() {
             </DialogHeader>
 
             <div className="py-4 space-y-6">
-              {/* Contact Type Name */}
               {editingVendorCustomFields !== null && (
                 <div className="space-y-2">
                   <Label htmlFor="contact-type-name">Contact Type Name</Label>
@@ -1805,7 +1775,6 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Add/Edit custom field form */}
               <div className="space-y-4 border-b pb-4">
                 <h4 className="font-medium">{editingField ? 'Edit Field' : 'Add New Field'}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1897,7 +1866,6 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Existing custom fields */}
               <div className="space-y-2">
                 <h4 className="font-medium">Existing Fields</h4>
                 <div className="space-y-2 max-h-[300px] overflow-y-auto">
