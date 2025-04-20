@@ -501,6 +501,42 @@ export default function TimelinePage() {
     dispatch(deleteItem(id));
   };
 
+  const saveTimeline = async () => {
+    try {
+      await saveMutation.mutateAsync({
+        title: weddingInfo.names,
+        date: weddingInfo.date,
+        type: weddingInfo.type,
+        location: weddingInfo.location,
+        categoriesEnabled: showCategories,
+        vendorsEnabled: showVendors,
+        customFieldValues: weddingInfo.customFieldValues || {},
+        categories: showCategories ? categories.map((category, index) => ({
+          name: category.name,
+          description: category.description,
+          order: category.order || index,
+          ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
+        })) : [],
+        events: items.map((item, index) => ({
+          startTime: item.startTime,
+          endTime: item.endTime,
+          duration: item.duration,
+          title: item.title,
+          description: item.description || '',
+          location: item.location || '',
+          type: item.type,
+          category: item.category,
+          categoryId: item.categoryId,
+          order: index,
+        })),
+      });
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Error saving timeline:', error);
+      return Promise.reject(error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-zinc-950 flex items-center justify-center">
@@ -652,14 +688,15 @@ export default function TimelinePage() {
                 setShowCategories={setShowCategories}
                 showEndTimes={showEndTimes}
                 setShowEndTimes={setShowEndTimes}
+                showVendors={showVendors}
+                setShowVendors={setShowVendors}
                 isTemplate={false}
                 items={items}
                 setItems={setItems}
                 onDeleteItem={handleDeleteItem}
                 newItemId={null}
                 setNewItemId={() => {}}
-                showVendors={showVendors}
-                setShowVendors={setShowVendors}
+                saveTimeline={saveTimeline}
               />
 
               {id && (
@@ -669,13 +706,13 @@ export default function TimelinePage() {
                       <h2 className="text-2xl font-serif mb-6">
                         <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Participant Information</span>
                       </h2>
-                      <ParticipantInformation timelineId={parseInt(id)} />
+                      <ParticipantInformation timelineId={parseInt(id)} showVendors={showVendors} />
                     </div>
                   )}
-                  
+
                   <div className="mt-8 border-t pt-8">
                     <h2 className="text-2xl font-serif mb-6">
-                      <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Images</span>
+                      <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Timeline Images</span>
                     </h2>
                     <TimelineImages timelineId={parseInt(id)} />
                   </div>

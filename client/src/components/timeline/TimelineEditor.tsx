@@ -231,6 +231,7 @@ interface TimelineEditorProps {
   setNewItemId?: (id: string | null) => void;
   isTrial?: boolean;
   onExport?: () => void; // Function to trigger external export dialog in trial mode
+  saveTimeline?: () => Promise<void>; // Function to save timeline to database
 }
 
 interface TimelineItem {
@@ -633,6 +634,7 @@ export function TimelineEditor({
   onDeleteItem,
   isTrial = false,
   onExport,
+  saveTimeline,
 }: TimelineEditorProps) {
   // Show specific buttons based on trial mode
   const shouldShowTemplatesButton = !isTrial;
@@ -4748,7 +4750,7 @@ export function TimelineEditor({
   };
   
   // Function to handle time shift for bulk edit
-  const handleTimeShift = (minutes: { minutes: number }) => {
+  const handleTimeShift = async (minutes: { minutes: number }) => {
     const selectedItemsCount = selectedItems.length;
     dispatch(adjustSelectedTimes(minutes));
     
@@ -4760,6 +4762,21 @@ export function TimelineEditor({
       description: `${selectedItemsCount} item${selectedItemsCount !== 1 ? 's' : ''} moved ${absoluteMinutes} minute${absoluteMinutes !== 1 ? 's' : ''} ${direction}`,
       variant: "default",
     });
+
+    // Save changes to database if not in template mode
+    if (!isTemplate && saveTimeline) {
+      try {
+        await saveTimeline();
+        console.log('Timeline saved after bulk edit');
+      } catch (error) {
+        console.error('Error saving timeline after bulk edit:', error);
+        toast({
+          title: "Error",
+          description: "Changes were made locally but failed to save to the server",
+          variant: "destructive",
+        });
+      }
+    }
   };
   
   // Function to handle selecting all items in a category
