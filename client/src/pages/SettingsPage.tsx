@@ -610,13 +610,20 @@ export default function SettingsPage() {
     defaultValue?: string | number | boolean | null;
   } | null>(null);
   
+  // Add ref to track if settings have been loaded
+  const hasLoadedSettingsRef = useRef(false);
+  
   useEffect(() => {
     console.log('SettingsPage: Initial load effect triggered');
     const loadSettings = async () => {
       try {
-        console.log('SettingsPage: Loading settings from API');
-        await dispatch(fetchSettings());
-        console.log('SettingsPage: Settings loaded successfully');
+        // Only fetch settings if they haven't been loaded yet
+        if (!hasLoadedSettingsRef.current) {
+          console.log('SettingsPage: Loading settings from API');
+          await dispatch(fetchSettings());
+          hasLoadedSettingsRef.current = true;
+          console.log('SettingsPage: Settings loaded successfully');
+        }
       } catch (error) {
         console.error('SettingsPage: Error loading settings:', error);
         toast({
@@ -721,6 +728,8 @@ export default function SettingsPage() {
   };
 
   const handleDiscard = () => {
+    // Reset hasLoadedSettingsRef to false before calling fetchSettings again
+    hasLoadedSettingsRef.current = false;
     dispatch(fetchSettings());
     setHasChanges(false);
     setLocalTheme(globalTheme);
