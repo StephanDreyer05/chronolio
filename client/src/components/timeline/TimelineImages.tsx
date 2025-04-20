@@ -381,8 +381,13 @@ export function TimelineImages({ timelineId }: TimelineImagesProps) {
       
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/timelines', timelineId, 'images'] });
+    onSuccess: (_, deletedImageId) => {
+      // Immediately update the local state to remove the deleted image
+      setImages(currentImages => currentImages.filter(img => img.id !== deletedImageId));
+      
+      // Then invalidate the query to ensure consistency with server data
+      queryClient.invalidateQueries({ queryKey: [`/api/timelines/${timelineId}/images`] });
+      
       toast({
         title: "Success",
         description: "Image deleted successfully",
