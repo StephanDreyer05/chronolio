@@ -938,7 +938,7 @@ export default function SettingsPage() {
   };
 
   const handleAddVendorCustomField = () => {
-    if (!editingVendorCustomFields || !newCustomField.name) return;
+    if (!editingVendorCustomFields || !newVendorCustomField.name) return;
     
     const vendorType = savedSettings.contactTypes.find(c => c.id === editingVendorCustomFields);
     
@@ -947,15 +947,15 @@ export default function SettingsPage() {
     const customFields = [...(vendorType.customFields || [])];
     const newField = {
       id: crypto.randomUUID(),
-      name: newCustomField.name,
-      type: newCustomField.type,
-      required: newCustomField.required,
-      defaultValue: newCustomField.defaultValue || null,
+      name: newVendorCustomField.name,
+      type: newVendorCustomField.type,
+      required: newVendorCustomField.required,
+      defaultValue: newVendorCustomField.defaultValue || null,
       order: customFields.length
     };
     
     dispatch(updateVendorTypeCustomFieldsApi(editingVendorCustomFields, [...customFields, newField]));
-    setNewCustomField({
+    setNewVendorCustomField({
       name: '',
       type: 'text',
       required: false,
