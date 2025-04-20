@@ -511,7 +511,10 @@ const BulkEditControls = ({
                 {timeAdjustments.map((minutes) => (
                   <DropdownMenuItem
                     key={`earlier-${minutes}`}
-                    onClick={() => onTimeShift({ minutes: -minutes })}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onTimeShift({ minutes: -minutes });
+                    }}
                   >
                     {minutes} minutes earlier
                   </DropdownMenuItem>
@@ -530,7 +533,10 @@ const BulkEditControls = ({
                 {timeAdjustments.map((minutes) => (
                   <DropdownMenuItem
                     key={`later-${minutes}`}
-                    onClick={() => onTimeShift({ minutes })}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onTimeShift({ minutes });
+                    }}
                   >
                     {minutes} minutes later
                   </DropdownMenuItem>
