@@ -112,6 +112,45 @@ const safeISODate = (value: any): string | undefined => {
   }
 };
 
+// Helper function to sanitize an object to ensure it doesn't have any properties that could cause date issues
+const sanitizeObject = (obj: any): any => {
+  if (!obj) return obj;
+  
+  // Return a primitive value as is
+  if (typeof obj !== 'object') return obj;
+  
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeObject(item));
+  }
+  
+  // Clone the object to avoid modifying the original
+  const result: any = {};
+  
+  // Copy only safe properties
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip properties that might cause issues
+    if (key === 'isEditing') continue;
+    
+    // Sanitize date fields
+    if (key === 'createdAt' || key === 'updatedAt' || key === 'last_modified') {
+      if (value) {
+        result[key] = safeISODate(value);
+      }
+      continue;
+    }
+    
+    // Recursively sanitize objects and arrays
+    if (typeof value === 'object' && value !== null) {
+      result[key] = sanitizeObject(value);
+    } else {
+      result[key] = value;
+    }
+  }
+  
+  return result;
+};
+
 // Thunk for fetching settings
 export const fetchSettings = () => async (dispatch: any) => {
   try {
@@ -180,44 +219,58 @@ export const fetchSettings = () => async (dispatch: any) => {
 export const updateSettingsApi = (settings: Partial<SettingsState>) => async (dispatch: any) => {
   try {
     dispatch(setLoading(true));
-
-    // Prepare the settings object, ensuring proper data types
-    const preparedSettings = {
-      ...settings,
-      eventTypes: settings.eventTypes?.map(eventType => ({
-        ...eventType,
-        customFields: eventType.customFields?.map(field => ({
-          ...field,
-          defaultValue: field.defaultValue ?? null
-        }))
-      })) || [],
-      // Convert contactTypes to vendorTypes for backward compatibility with API
-      vendorTypes: settings.contactTypes?.map(contactType => ({
-        ...contactType,
-        // Fix date format issues - ensure last_modified is a valid date string
-        last_modified: safeISODate(contactType.last_modified) || new Date().toISOString(),
-        // Ensure createdAt and updatedAt are valid date strings
-        createdAt: safeISODate(contactType.createdAt),
-        updatedAt: safeISODate(contactType.updatedAt),
-        customFields: contactType.customFields?.map(field => ({
-          ...field,
-          defaultValue: field.defaultValue ?? null,
-          order: typeof field.order === 'number' ? field.order : 0
-        }))
-      })) || [],
-      defaultTimelineViewType: settings.defaultTimelineViewType || 'list',
+    
+    // Create a minimal sanitized version of settings to send to the server
+    const minimalSettings = {
+      theme: settings.theme,
+      hidePastEvents: settings.hidePastEvents,
+      showCategories: settings.showCategories,
+      defaultEventDuration: settings.defaultEventDuration,
+      defaultStartTime: settings.defaultStartTime,
+      timeIncrement: settings.timeIncrement,
+      durationIncrement: settings.durationIncrement,
+      defaultCalendarView: settings.defaultCalendarView,
+      defaultSorting: settings.defaultSorting,
+      defaultTimelineViewType: settings.defaultTimelineViewType,
       exportFooterText: settings.exportFooterText || '',
-      // Ensure any date fields are properly formatted
-      createdAt: safeISODate(settings.createdAt),
-      updatedAt: new Date().toISOString()
+      eventTypes: settings.eventTypes 
+        ? sanitizeObject(settings.eventTypes.map(type => ({
+            type: type.type,
+            color: type.color,
+            customFields: type.customFields ? type.customFields.map(field => ({
+              id: field.id,
+              name: field.name,
+              type: field.type,
+              required: !!field.required,
+              defaultValue: field.defaultValue ?? null,
+              order: typeof field.order === 'number' ? field.order : 0
+            })) : []
+          })))
+        : [],
+      vendorTypes: settings.contactTypes 
+        ? sanitizeObject(settings.contactTypes.map(type => ({
+            id: type.id,
+            name: type.name,
+            customFields: type.customFields ? type.customFields.map(field => ({
+              id: field.id,
+              name: field.name,
+              type: field.type,
+              required: !!field.required,
+              defaultValue: field.defaultValue ?? null,
+              order: typeof field.order === 'number' ? field.order : 0
+            })) : []
+          })))
+        : []
     };
+
+    console.log('Sending sanitized settings to server:', minimalSettings);
 
     const response = await fetchWithAuth('/api/settings', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(preparedSettings),
+      body: JSON.stringify(minimalSettings),
     });
 
     if (!response.ok) {
