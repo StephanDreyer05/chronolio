@@ -10,7 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useDispatch } from 'react-redux';
 import { setSettings, fetchSettings } from '@/store/settingsSlice';
-import { useSubscription } from '@/contexts/subscription-context';
 
 type AuthContextType = {
   user: SelectUser | null;
@@ -61,7 +60,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const dispatch = useDispatch();
-  const subscription = useSubscription();
   const pathname = window.location.pathname;
   const isTrialPage = pathname === '/try' || pathname.startsWith('/try/');
 
@@ -107,23 +105,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onSuccess: async (data) => {
       queryClient.setQueryData(["/api/user"], data);
       
-      // Immediately fetch the latest subscription data
+      // After login, manually refresh subscription data with direct API call
       try {
-        // First refresh subscription data to ensure we have the latest status
-        await subscription.fetchUserSubscription();
-        console.log("Subscription data refreshed after login");
+        // Invalidate subscription data to force refetch on next render
+        queryClient.invalidateQueries({ queryKey: ['user-subscription'] });
+        console.log("Subscription data will be refreshed on next component render");
       } catch (subError) {
-        console.error("Error refreshing subscription data:", subError);
+        console.error("Error invalidating subscription data:", subError);
       }
       
       // Fetch and set user settings immediately after login
       try {
         await fetchUserSettings(dispatch);
         
-        // Check user subscription status using the freshly fetched data
+        // Check user subscription status using a direct API call
         try {
-          // Use the subscription context data instead of making a new fetch
-          const subData = subscription.userSubscription;
+          const subResponse = await fetch('/api/subscription/user');
+          const subData = await subResponse.json();
           
           // If subscription exists but is not active, redirect to subscription page
           if (

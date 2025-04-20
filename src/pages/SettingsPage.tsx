@@ -87,6 +87,29 @@ interface EventType {
 
 // Subscription management component
 const SubscriptionSection = () => {
+  // Add try/catch to handle case where context isn't ready
+  let subscriptionContext = null;
+  try {
+    subscriptionContext = useSubscription();
+  } catch (error) {
+    console.error('Subscription context not available:', error);
+    // Return a loading or fallback state
+    return (
+      <Card className="bg-white dark:bg-zinc-900 border shadow-sm overflow-hidden">
+        <CardHeader>
+          <CardTitle>Subscription</CardTitle>
+          <CardDescription>Manage your subscription plan</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center p-4">
+            <p>Loading subscription information...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  // Destructure only if context is available
   const { 
     userSubscription, 
     plans, 
@@ -96,7 +119,8 @@ const SubscriptionSection = () => {
     isSubscriptionActive,
     isPremium,
     fetchUserSubscription
-  } = useSubscription();
+  } = subscriptionContext;
+  
   const { user } = useAuth();
   const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -104,8 +128,12 @@ const SubscriptionSection = () => {
 
   // Refresh subscription data when component mounts
   useEffect(() => {
-    // Ensure we have the latest subscription data
-    fetchUserSubscription();
+    try {
+      // Ensure we have the latest subscription data
+      fetchUserSubscription();
+    } catch (error) {
+      console.error('Error refreshing subscription data:', error);
+    }
   }, [fetchUserSubscription]);
 
   const getPlanByInterval = () => {
@@ -405,8 +433,12 @@ const UserProfile = () => {
 
   // Refresh user data when component mounts
   useEffect(() => {
-    // Invalidate and refetch user data to ensure we have the latest info
-    queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+    try {
+      // Invalidate and refetch user data to ensure we have the latest info
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+    }
   }, [queryClient]);
   
   const form = useForm({
