@@ -208,6 +208,71 @@ const directS3Service = {
     }
   },
   
+  deleteObject: async (key) => {
+    try {
+      console.log('=== DIRECT FETCH S3 SERVICE - DELETE OBJECT ===');
+      console.log('Attempting S3 delete without AWS SDK for key:', key);
+      
+      if (!key) {
+        throw new Error('Key is required');
+      }
+      
+      // Normalize the key to prevent double slashes
+      const normalizedKey = normalizeS3Key(key);
+      console.log('Normalized key:', normalizedKey);
+      
+      // Use sanitized environment variables instead of raw ones
+      console.log('Environment variables status (sanitized):');
+      console.log('REGION:', REGION);
+      console.log('BUCKET_NAME:', BUCKET_NAME);
+      console.log('ACCESS_KEY_ID exists:', !!ACCESS_KEY_ID);
+      console.log('SECRET_ACCESS_KEY exists:', !!SECRET_ACCESS_KEY);
+      
+      if (!BUCKET_NAME || !REGION || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY) {
+        throw new Error('S3 configuration incomplete: Missing required environment variables');
+      }
+      
+      // Proceed with the actual S3 delete using AWS SDK
+      console.log('Dynamically importing AWS SDK...');
+      const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+      
+      // Log the actual values being used for S3 client creation
+      console.log('Creating S3 client with region:', REGION);
+      console.log('Using bucket:', BUCKET_NAME);
+      
+      const s3Client = new S3Client({
+        region: REGION,
+        credentials: {
+          accessKeyId: ACCESS_KEY_ID,
+          secretAccessKey: SECRET_ACCESS_KEY
+        }
+      });
+      
+      console.log('Preparing delete command...');
+      const command = new DeleteObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: normalizedKey
+      });
+      
+      console.log('Executing delete from S3...');
+      const result = await s3Client.send(command);
+      
+      console.log('Delete successful!', result);
+      
+      return { 
+        success: true, 
+        key: normalizedKey
+      };
+    } catch (error) {
+      console.error('ERROR in direct S3 service deleteObject:', error);
+      return { 
+        success: false, 
+        key: key,
+        error: String(error)
+      };
+    }
+  },
+  
   testConnection: async () => {
     try {
       console.log('Testing S3 connection, using:');
@@ -298,7 +363,48 @@ const s3Service = {
   ...directS3Service,
   
   // Will be overridden with AWS SDK implementation if available
-  usingDirectFetch: true
+  usingDirectFetch: true,
+  
+  // Add deleteObject method
+  deleteObject: async (key) => {
+    try {
+      // Clean and normalize the key
+      const normalizedKey = normalizeS3Key(key);
+      
+      // Check if we're in direct fetch mode
+      if (s3Service.usingDirectFetch) {
+        return directS3Service.deleteObject(normalizedKey);
+      }
+      
+      // If we have an initialized S3 client, use AWS SDK directly
+      if (s3Client) {
+        const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+        
+        const command = new DeleteObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: normalizedKey
+        });
+        
+        const result = await s3Client.send(command);
+        console.log('Successfully deleted S3 object:', normalizedKey);
+        
+        return {
+          success: true,
+          key: normalizedKey
+        };
+      } else {
+        console.warn('S3 client not initialized, falling back to direct service');
+        return directS3Service.deleteObject(normalizedKey);
+      }
+    } catch (error) {
+      console.error('Error in s3Service.deleteObject:', error);
+      return {
+        success: false,
+        key,
+        error: String(error)
+      };
+    }
+  }
 };
 
 // Initialize the S3 service

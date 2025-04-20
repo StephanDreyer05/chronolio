@@ -3486,13 +3486,41 @@ export function registerRoutes(app: Express): Server {
         });
       }
       
-      // Here you would delete the file from S3
-      // For now, we'll just return success
+      // Import the S3 service
+      const s3Service = (await import('./services/s3Service.js')).default;
       
-      res.json({
-        success: true,
-        message: 'Server-side delete simulation successful'
-      });
+      // Normalize the key to prevent double slashes
+      const normalizedKey = key.startsWith('/') ? key.substring(1) : key;
+      
+      console.log(`Attempting to delete S3 object with key: ${normalizedKey}`);
+      
+      // Check if we have the deleteObject method in the s3Service
+      if (s3Service.deleteObject) {
+        // Use the service's deleteObject method
+        const result = await s3Service.deleteObject(normalizedKey);
+        
+        if (result.success) {
+          console.log(`Successfully deleted object from S3: ${normalizedKey}`);
+          return res.json({
+            success: true,
+            message: 'File deleted successfully from S3'
+          });
+        } else {
+          console.error(`Failed to delete object from S3: ${result.error}`);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to delete file from S3',
+            error: result.error
+          });
+        }
+      } else {
+        // No deleteObject method available, return a simulation success response
+        console.warn(`S3 deleteObject method not available. Key was: ${normalizedKey}`);
+        return res.json({
+          success: true,
+          message: 'Server-side delete simulation successful'
+        });
+      }
     } catch (error) {
       console.error('Error deleting from S3:', error);
       res.status(500).json({
