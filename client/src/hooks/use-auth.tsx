@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useDispatch } from 'react-redux';
 import { setSettings, fetchSettings } from '@/store/settingsSlice';
+import { useSubscription } from '@/contexts/subscription-context';
 
 type AuthContextType = {
   user: SelectUser | null;
@@ -60,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const dispatch = useDispatch();
+  const subscription = useSubscription();
   const pathname = window.location.pathname;
   const isTrialPage = pathname === '/try' || pathname.startsWith('/try/');
 
@@ -104,14 +106,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: async (data) => {
       queryClient.setQueryData(["/api/user"], data);
+      
+      // Immediately fetch the latest subscription data
+      try {
+        // First refresh subscription data to ensure we have the latest status
+        await subscription.fetchUserSubscription();
+        console.log("Subscription data refreshed after login");
+      } catch (subError) {
+        console.error("Error refreshing subscription data:", subError);
+      }
+      
       // Fetch and set user settings immediately after login
       try {
         await fetchUserSettings(dispatch);
         
-        // Check user subscription status
+        // Check user subscription status using the freshly fetched data
         try {
-          const subResponse = await fetch('/api/subscription/user');
-          const subData = await subResponse.json();
+          // Use the subscription context data instead of making a new fetch
+          const subData = subscription.userSubscription;
           
           // If subscription exists but is not active, redirect to subscription page
           if (
@@ -127,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
           }
         } catch (subError) {
-          console.error("Error fetching subscription:", subError);
+          console.error("Error checking subscription:", subError);
         }
         
         // Default success toast and navigation

@@ -70,6 +70,7 @@ import { cn } from "../lib/utils";
 import { Checkbox } from "../components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Separator } from "../components/ui/separator";
+import { useQueryClient } from '@tanstack/react-query';
 
 interface EventType {
   type: string;
@@ -100,6 +101,12 @@ const SubscriptionSection = () => {
   const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const { toast } = useToast();
+
+  // Refresh subscription data when component mounts
+  useEffect(() => {
+    // Ensure we have the latest subscription data
+    fetchUserSubscription();
+  }, [fetchUserSubscription]);
 
   const getPlanByInterval = () => {
     if (!plans || plans.length === 0) return null;
@@ -394,6 +401,14 @@ const UserProfile = () => {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Refresh user data when component mounts
+  useEffect(() => {
+    // Invalidate and refetch user data to ensure we have the latest info
+    queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+  }, [queryClient]);
+  
   const form = useForm({
     defaultValues: {
       username: user?.username || '',
