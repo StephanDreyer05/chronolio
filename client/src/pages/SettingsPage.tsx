@@ -96,7 +96,7 @@ const UserProfile = () => {
   const hasRefreshedRef = useRef(false);
 
   useEffect(() => {
-    if (!hasRefreshedRef.current) {
+    if (!hasRefreshedRef.current && user?.id) {
       try {
         queryClient.invalidateQueries({ queryKey: ['/api/user'] });
         hasRefreshedRef.current = true;
@@ -104,7 +104,7 @@ const UserProfile = () => {
         console.error('Error refreshing user data:', error);
       }
     }
-  }, [queryClient]);
+  }, [queryClient, user?.id]);
   
   const form = useForm({
     defaultValues: {
@@ -268,7 +268,7 @@ const SubscriptionSection = () => {
   const hasRefreshedRef = useRef(false);
 
   useEffect(() => {
-    if (!hasRefreshedRef.current) {
+    if (!hasRefreshedRef.current && user?.id) {
       try {
         fetchUserSubscription();
         hasRefreshedRef.current = true;
@@ -276,7 +276,7 @@ const SubscriptionSection = () => {
         console.error('Error refreshing subscription data:', error);
       }
     }
-  }, [fetchUserSubscription]);
+  }, [fetchUserSubscription, user?.id]);
 
   const getPlanByInterval = () => {
     if (!plans || plans.length === 0) return null;
@@ -610,14 +610,12 @@ export default function SettingsPage() {
     defaultValue?: string | number | boolean | null;
   } | null>(null);
   
-  // Add ref to track if settings have been loaded
   const hasLoadedSettingsRef = useRef(false);
   
   useEffect(() => {
     console.log('SettingsPage: Initial load effect triggered');
     const loadSettings = async () => {
       try {
-        // Only fetch settings if they haven't been loaded yet
         if (!hasLoadedSettingsRef.current) {
           console.log('SettingsPage: Loading settings from API');
           await dispatch(fetchSettings());
@@ -728,7 +726,6 @@ export default function SettingsPage() {
   };
 
   const handleDiscard = () => {
-    // Reset hasLoadedSettingsRef to false before calling fetchSettings again
     hasLoadedSettingsRef.current = false;
     dispatch(fetchSettings());
     setHasChanges(false);

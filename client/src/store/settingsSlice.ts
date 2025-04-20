@@ -91,9 +91,23 @@ const settingsSlice = createSlice({
 
 export const { setSettings, setLoading, setError } = settingsSlice.actions;
 
+// Add a variable to track the last fetch time
+let lastFetchTime = 0;
+const FETCH_COOLDOWN = 2000; // 2 seconds cooldown between fetches
+
 // Thunk for fetching settings
 export const fetchSettings = () => async (dispatch: any) => {
   try {
+    // Check if we should skip this fetch due to a recent fetch
+    const now = Date.now();
+    if (now - lastFetchTime < FETCH_COOLDOWN) {
+      console.log('Skipping fetchSettings due to cooldown period');
+      return;
+    }
+    
+    // Update the last fetch time
+    lastFetchTime = now;
+    
     console.log('Starting fetchSettings...');
     dispatch(setLoading(true));
     

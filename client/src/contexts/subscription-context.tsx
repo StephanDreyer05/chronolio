@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -70,6 +70,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const { toast } = useToast();
   const [userSubscription, setUserSubscription] = useState<UserSubscription | null>(null);
+  const hasFetchedRef = useRef(false);
   
   // Get values from auth context
   const { user, isLoggedIn } = auth;
@@ -89,6 +90,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       return response.json();
     },
     enabled: true, // Always fetch plans, even for non-logged in users
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnWindowFocus: false, // Prevent refetching when window regains focus
   });
   
   // Fetch user subscription if logged in
@@ -99,20 +102,32 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   } = useQuery({
     queryKey: ['user-subscription', user?.id],
     queryFn: async () => {
+      // Only fetch if we haven't already or if explicitly requested
+      if (hasFetchedRef.current && !userSubscription) {
+        return null;
+      }
+      
       const response = await fetch('/api/subscription/user');
       if (!response.ok) {
         throw new Error('Failed to fetch user subscription');
       }
       const data = await response.json();
       setUserSubscription(data);
+      hasFetchedRef.current = true;
       return data;
     },
     enabled: isLoggedIn && !!user?.id,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnWindowFocus: false, // Prevent refetching when window regains focus
   });
   
   const fetchUserSubscription = async () => {
     if (isLoggedIn && user?.id) {
+      // Force a refetch by temporarily clearing the hasFetchedRef
+      const wasFetched = hasFetchedRef.current;
+      hasFetchedRef.current = false;
       await refetch();
+      hasFetchedRef.current = true;
     }
   };
   
