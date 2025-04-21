@@ -115,14 +115,14 @@ export default function TimelinePage() {
   const [isBulkEditing, setIsBulkEditing] = useState(false);
   const justExitedBulkEditRef = useRef(false);
   
-  // Helper functions for disableRefetchUntil using localStorage
+  // Helper functions for disableRefetchUntil using sessionStorage
   const getDisableRefetchUntil = () => {
-    const value = localStorage.getItem(`disableRefetchUntil-${id}`);
+    const value = sessionStorage.getItem(`disableRefetchUntil-${id}`);
     return value ? parseInt(value, 10) : 0;
   };
   
   const setDisableRefetchUntil = (timestamp: number) => {
-    localStorage.setItem(`disableRefetchUntil-${id}`, timestamp.toString());
+    sessionStorage.setItem(`disableRefetchUntil-${id}`, timestamp.toString());
   };
 
   const { 
@@ -177,11 +177,19 @@ export default function TimelinePage() {
     enabled: !!id && !isBulkEditing && Date.now() > getDisableRefetchUntil(),
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    refetchOnReconnect: false,
+    retry: false,
     staleTime: 60 * 1000,
-    // Force refetch after disableRefetchUntil expires
     refetchInterval: getDisableRefetchUntil() > Date.now() ? false : undefined,
     queryFn: async () => {
-      console.log(`[DEBUG] Query executing - isBulkEditing: ${isBulkEditing}, id: ${id}, disableRefetchUntil: ${getDisableRefetchUntil()}, now: ${Date.now()}`);
+      const disableUntil = getDisableRefetchUntil();
+      console.log(`[DEBUG] Query executing - isBulkEditing: ${isBulkEditing}, id: ${id}, disableRefetchUntil: ${disableUntil}, now: ${Date.now()}, disabled: ${disableUntil > Date.now()}`);
+      
+      if (disableUntil > Date.now()) {
+        console.log('[DEBUG] Aborting query - refetch is disabled');
+        throw new Error('Refetch is currently disabled');
+      }
+      
       try {
         const response = await fetchWithAuth(`/api/timelines/${id}`);
         if (!response.ok) {
@@ -210,12 +218,26 @@ export default function TimelinePage() {
   }, [timelineError, toast]);
 
   useEffect(() => {
+    // Always check the disable refetch time first, as it's the most reliable
+    const disableRefetchUntil = getDisableRefetchUntil();
+    const now = Date.now();
+    const refetchDisabled = disableRefetchUntil > now;
+    
+    if (refetchDisabled) {
+      console.log(`[DEBUG] Skipping timeline processing - refetch disabled for ${Math.round((disableRefetchUntil - now)/1000)} more seconds`);
+      return;
+    }
+    
     if (!existingTimeline) return;
     
-    console.log('[DEBUG] existingTimeline useEffect triggered - isBulkEditing:', isBulkEditing, 'justExitedBulkEditRef:', justExitedBulkEditRef.current, 'disableRefetchUntil:', getDisableRefetchUntil(), 'now:', Date.now());
+    console.log('[DEBUG] existingTimeline useEffect triggered - isBulkEditing:', isBulkEditing, 
+      'justExitedBulkEditRef:', justExitedBulkEditRef.current, 
+      'disableRefetchUntil:', getDisableRefetchUntil(), 
+      'refetchDisabled:', refetchDisabled, 
+      'now:', now);
     
     // Skip processing if we just exited bulk edit mode or if refetching is disabled
-    if (justExitedBulkEditRef.current || Date.now() < getDisableRefetchUntil()) {
+    if (justExitedBulkEditRef.current) {
       console.log('[DEBUG] Skipping timeline reload due to bulk edit flags');
       justExitedBulkEditRef.current = false;
       return;
@@ -571,10 +593,17 @@ export default function TimelinePage() {
     // should control this state based on user interactions
     console.log('[DEBUG] syncChanges called - current isBulkEditing state:', isBulkEditing);
     
-    // Set the refetch disable timestamp to prevent automatic refetching for 30 seconds
-    const DISABLE_REFETCH_MS = 30000; // 30 seconds - much longer to ensure it persists
+    // Set the refetch disable timestamp to prevent automatic refetching for 5 minutes
+    // This is much longer than needed but ensures no accidental refetches
+    const DISABLE_REFETCH_MS = 5 * 60 * 1000; // 5 minutes
     setDisableRefetchUntil(Date.now() + DISABLE_REFETCH_MS);
     console.log(`[DEBUG] Disabled refetching until: ${new Date(getDisableRefetchUntil()).toISOString()}`);
+    
+    // Force isBulkEditing to true to prevent refetches during save operation
+    if (!isBulkEditing) {
+      console.log('[DEBUG] Forcing isBulkEditing to true during sync');
+      setIsBulkEditing(true);
+    }
     
     saveMutation.mutate({
       title: weddingInfo.names,
@@ -606,16 +635,6 @@ export default function TimelinePage() {
       skipInvalidation: true
     });
   };
-
-  // Clean up localStorage on component unmount
-  useEffect(() => {
-    return () => {
-      if (id) {
-        localStorage.removeItem(`disableRefetchUntil-${id}`);
-        console.log(`[DEBUG] Cleaned up disableRefetchUntil for timeline ${id}`);
-      }
-    };
-  }, [id]);
 
   if (isLoading) {
     return (
