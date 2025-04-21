@@ -1,5 +1,5 @@
 import { TimelineItem } from './TimelineItem';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { deleteItem } from '@/store/timelineSlice';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, ChevronDown, ChevronRight } from 'lucide-react';
@@ -63,7 +63,7 @@ interface TimelineViewProps {
 }
 
 export function TimelineView({ 
-  items, 
+  items: propItems, 
   categories, 
   onUpdateItem, 
   onDeleteItem,
@@ -90,6 +90,22 @@ export function TimelineView({
   isPublicView = false,
 }: TimelineViewProps) {
   const dispatch = useDispatch();
+  
+  // Add direct subscription to Redux store for timeline items
+  const reduxItems = useSelector((state: any) => state.timeline.items);
+  
+  // Use Redux items if available, otherwise fall back to props
+  const items = reduxItems.length > 0 ? reduxItems : propItems;
+  
+  // Debug logging for items
+  useEffect(() => {
+    console.log("TimelineView - Items updated:", { 
+      reduxItemsCount: reduxItems.length,
+      propItemsCount: propItems.length,
+      usingReduxItems: reduxItems.length > 0
+    });
+  }, [reduxItems, propItems]);
+  
   const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
 
   // Prevent default behavior for all events to avoid page reloads
