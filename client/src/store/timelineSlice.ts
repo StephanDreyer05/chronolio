@@ -220,6 +220,10 @@ const timelineSlice = createSlice({
     adjustSelectedTimes(state: TimelineState, action: PayloadAction<{ minutes: number }>) {
       if (state.selectedItems.length === 0) return;
 
+      console.log('[adjustSelectedTimes] Payload:', action.payload);
+      console.log('[adjustSelectedTimes] State before update:', JSON.parse(JSON.stringify(state.items))); // Deep copy for logging
+      console.log('[adjustSelectedTimes] Selected items:', state.selectedItems);
+
       state.past.push([...state.items]);
       state.items = state.items.map((item: TimelineItem) => {
         if (state.selectedItems.includes(item.id)) {
@@ -246,6 +250,8 @@ const timelineSlice = createSlice({
         }
         return item;
       });
+
+      console.log('[adjustSelectedTimes] State after update:', JSON.parse(JSON.stringify(state.items))); // Deep copy for logging
 
       state.future = [];
       state.canUndo = true;

@@ -160,6 +160,7 @@ export default function TimelinePage() {
     queryKey: [`/api/timelines/${id}`],
     enabled: !!id,
     refetchOnWindowFocus: false,
+    staleTime: 60 * 1000,
     queryFn: async () => {
       console.log(`Fetching timeline with ID: ${id}`);
       try {
