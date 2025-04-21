@@ -268,11 +268,12 @@ export default function TimelinePage() {
         category?: string;
         order: number;
       }>;
+      shouldNavigate?: boolean;
     }) => {
       const endpoint = id ? `/api/timelines/${id}` : '/api/timelines';
       const method = id ? 'PUT' : 'POST';
 
-      const payload = data || {
+      const payload = {
         title: weddingInfo.names,
         date: weddingInfo.date,
         type: weddingInfo.type,
@@ -298,16 +299,19 @@ export default function TimelinePage() {
           categoryId: item.categoryId,
           order: index,
         })),
+        ...(data || {})
       };
 
-      console.log(`Saving timeline ${id ? 'update' : 'creation'}:`, payload);
+      const { shouldNavigate, ...serverPayload } = payload as any;
+
+      console.log(`Saving timeline ${id ? 'update' : 'creation'}:`, serverPayload);
       
       const response = await fetchWithAuth(endpoint, {
         method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(serverPayload),
       });
 
       if (!response.ok) {
@@ -316,9 +320,12 @@ export default function TimelinePage() {
         throw new Error(`Failed to save timeline: ${errorText}`);
       }
 
-      return response.json();
+      return { 
+        data: await response.json(), 
+        shouldNavigate: shouldNavigate !== false
+      };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast({
         title: "Success",
         description: "Timeline saved successfully",
@@ -327,7 +334,7 @@ export default function TimelinePage() {
       if (id) {
         queryClient.invalidateQueries({ queryKey: [`/api/timelines/${id}`] });
       }
-      if (!showSaveDialog) {
+      if (result.shouldNavigate && !showSaveDialog) {
         navigate('/');
       }
     },
@@ -427,6 +434,7 @@ export default function TimelinePage() {
           categoryId: item.categoryId,
           order: index,
         })),
+        shouldNavigate: true
       });
       setShowSaveDialog(false);
       if (navigationPath) {
@@ -501,7 +509,6 @@ export default function TimelinePage() {
     dispatch(deleteItem(id));
   };
 
-  // Function to sync changes with the server
   const syncChanges = () => {
     saveMutation.mutate({
       title: weddingInfo.names,
@@ -529,6 +536,7 @@ export default function TimelinePage() {
         categoryId: item.categoryId,
         order: index,
       })),
+      shouldNavigate: false
     });
   };
 
@@ -644,6 +652,7 @@ export default function TimelinePage() {
                           categoryId: item.categoryId,
                           order: index,
                         })),
+                        shouldNavigate: true
                       })}
                       disabled={saveMutation.isPending || !weddingInfo.names || !weddingInfo.date}
                       className="ml-2 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200 font-medium"
@@ -742,6 +751,7 @@ export default function TimelinePage() {
                       categoryId: item.categoryId,
                       order: index,
                     })),
+                    shouldNavigate: true
                   })}
                   disabled={saveMutation.isPending || !weddingInfo.names || !weddingInfo.date}
                   variant="default"
