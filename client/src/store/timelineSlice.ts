@@ -167,42 +167,19 @@ const timelineSlice = createSlice({
       state.past.push([...state.items]);
       state.items = state.items.map(item => {
         if (state.selectedItems.includes(item.id)) {
-          // Calculate start time
-          const [startHours, startMinutes] = item.startTime.split(':').map(Number);
-          let startTotalMinutes = startHours * 60 + startMinutes + action.payload.minutes;
+          const [hours, minutes] = item.startTime.split(':').map(Number);
+          let totalMinutes = hours * 60 + minutes + action.payload.minutes;
 
           // Handle day wrapping
-          while (startTotalMinutes < 0) startTotalMinutes += 24 * 60;
-          startTotalMinutes = startTotalMinutes % (24 * 60);
+          while (totalMinutes < 0) totalMinutes += 24 * 60;
+          totalMinutes = totalMinutes % (24 * 60);
 
-          const newStartHours = Math.floor(startTotalMinutes / 60);
-          const newStartMinutes = startTotalMinutes % 60;
-          const newStartTime = `${String(newStartHours).padStart(2, '0')}:${String(newStartMinutes).padStart(2, '0')}`;
-
-          // Calculate new end time based on original duration (not changing duration)
-          let newEndTime = item.endTime;
-          
-          if (item.duration) {
-            // Get duration in minutes
-            const [durationHours, durationMinutes] = item.duration.split(':').map(Number);
-            const durationTotalMinutes = durationHours * 60 + durationMinutes;
-            
-            // Add duration to new start time
-            let endTotalMinutes = startTotalMinutes + durationTotalMinutes;
-            
-            // Handle day wrapping
-            endTotalMinutes = endTotalMinutes % (24 * 60);
-            
-            const newEndHours = Math.floor(endTotalMinutes / 60);
-            const newEndMinutes = endTotalMinutes % 60;
-            newEndTime = `${String(newEndHours).padStart(2, '0')}:${String(newEndMinutes).padStart(2, '0')}`;
-          }
+          const newHours = Math.floor(totalMinutes / 60);
+          const newMinutes = totalMinutes % 60;
 
           return {
             ...item,
-            startTime: newStartTime,
-            endTime: newEndTime
-            // Keep original duration (don't include in the return object to maintain it)
+            startTime: `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`
           };
         }
         return item;

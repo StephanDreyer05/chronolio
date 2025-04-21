@@ -231,9 +231,6 @@ interface TimelineEditorProps {
   setNewItemId?: (id: string | null) => void;
   isTrial?: boolean;
   onExport?: () => void; // Function to trigger external export dialog in trial mode
-  onSync?: () => void; // Function to sync changes with the server for logged-in users
-  onBulkEditModeChange?: (isEntering: boolean) => void; // Function to notify parent when bulk edit mode changes
-  isBulkEditing?: boolean; // Flag indicating if bulk editing is in progress
 }
 
 interface TimelineItem {
@@ -630,9 +627,6 @@ export function TimelineEditor({
   onDeleteItem,
   isTrial = false,
   onExport,
-  onSync,
-  onBulkEditModeChange,
-  isBulkEditing,
 }: TimelineEditorProps) {
   // Show specific buttons based on trial mode
   const shouldShowTemplatesButton = !isTrial;
@@ -4750,13 +4744,14 @@ export function TimelineEditor({
   // Function to handle time shift for bulk edit
   const handleTimeShift = (minutes: { minutes: number }) => {
     const selectedItemsCount = selectedItems.length;
+    const { bulkEditMode } = useSelector((state: RootState) => state.timeline);
     
-    // Debug logging - only in trial mode to compare behavior
-    if (isTrial) {
-      console.log("TRIAL MODE - handleTimeShift called with minutes:", minutes);
-      console.log("TRIAL MODE - Selected items:", selectedItems);
+    // Force bulk edit mode to stay on during the operation
+    if (!bulkEditMode) {
+      console.log('[DEBUG] Forcing bulk edit mode to true during time adjustment');
+      dispatch(setBulkEditMode(true));
     }
-
+    
     dispatch(adjustSelectedTimes(minutes));
     
     // Show toast notification
@@ -4767,12 +4762,15 @@ export function TimelineEditor({
       description: `${selectedItemsCount} item${selectedItemsCount !== 1 ? 's' : ''} moved ${absoluteMinutes} minute${absoluteMinutes !== 1 ? 's' : ''} ${direction}`,
       variant: "default",
     });
-
-    // If a sync function is provided (for logged-in users), call it to save changes to the server
-    if (!isTrial && !isTemplate && onSync) {
-      // Add debug log
-      console.log("Syncing bulk edit changes to server");
-      onSync();
+    
+    // Set a cleanup timer to ensure bulk edit mode isn't turned off too early
+    // Only do this if we're in a regular timeline (not trial mode)
+    if (!isTrial && typeof id === 'string' && id) {
+      const timelineId = parseInt(id, 10);
+      if (!isNaN(timelineId)) {
+        console.log('[DEBUG] Setting cleanup delay to keep bulk edit mode active for timeline', timelineId);
+        // We'll let the useEffect in TimelinePage handle the actual refetch prevention
+      }
     }
   };
   
@@ -5335,12 +5333,6 @@ export function TimelineEditor({
         });
       });
   };
-
-  useEffect(() => {
-    if (onBulkEditModeChange && bulkEditMode !== undefined) {
-      onBulkEditModeChange(bulkEditMode);
-    }
-  }, [bulkEditMode, onBulkEditModeChange]);
 
   return (
     <div className="space-y-6">
@@ -5932,7 +5924,6 @@ export function TimelineEditor({
                 size="sm"
                 onClick={() => dispatch(setBulkEditMode(!bulkEditMode))}
                 className={bulkEditMode ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-white dark:bg-zinc-900"}
-                disabled={isBulkEditing} // Prevent toggling during bulk edit operations
               >
                 <Edit2 className={`h-4 w-4 mr-2 ${bulkEditMode ? 'text-white' : 'text-purple-600'}`} />
                 {bulkEditMode ? "Exit Bulk Edit" : "Bulk Edit"}

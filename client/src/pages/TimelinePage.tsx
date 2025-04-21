@@ -9,7 +9,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootState, resetTimeline, addItem, updateWeddingInfo, setItems as setReduxItems, deleteItem } from "@/store/timelineSlice";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -104,7 +104,7 @@ export default function TimelinePage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { collapsed } = useSidebar();
-  const { items, weddingInfo } = useSelector((state: RootState) => state.timeline);
+  const { items, weddingInfo, bulkEditMode } = useSelector((state: RootState) => state.timeline);
   const [showCategories, setShowCategories] = useState(false);
   const [showEndTimes, setShowEndTimes] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -112,61 +112,8 @@ export default function TimelinePage() {
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [showVendors, setShowVendors] = useState(false);
-  const [isBulkEditing, setIsBulkEditing] = useState(false);
-  const justExitedBulkEditRef = useRef(false);
+  const [disableRefetchUntil, setDisableRefetchUntil] = useState<number | null>(null);
   
-  // Add a state for storing temporary bulk edit changes
-  const [bulkEditChanges, setBulkEditChanges] = useState<{
-    items: any[];
-    hasChanges: boolean;
-  }>({
-    items: [],
-    hasChanges: false
-  });
-  
-  // Helper functions for disableRefetchUntil using sessionStorage
-  const getDisableRefetchUntil = () => {
-    const value = sessionStorage.getItem(`disableRefetchUntil-${id}`);
-    return value ? parseInt(value, 10) : 0;
-  };
-  
-  const setDisableRefetchUntil = (timestamp: number) => {
-    sessionStorage.setItem(`disableRefetchUntil-${id}`, timestamp.toString());
-  };
-  
-  // Helper functions to persist bulk edit state in sessionStorage
-  const getBulkEditingState = () => {
-    const value = sessionStorage.getItem(`isBulkEditing-${id}`);
-    return value === 'true';
-  };
-  
-  const setBulkEditingState = (state: boolean) => {
-    if (state) {
-      sessionStorage.setItem(`isBulkEditing-${id}`, 'true');
-    } else {
-      sessionStorage.removeItem(`isBulkEditing-${id}`);
-    }
-  };
-  
-  // Initialize the isBulkEditing state from sessionStorage
-  useEffect(() => {
-    if (id) {
-      const storedValue = getBulkEditingState();
-      if (storedValue !== isBulkEditing) {
-        console.log(`[DEBUG] Restoring bulk edit state from sessionStorage: ${storedValue}`);
-        setIsBulkEditing(storedValue);
-      }
-    }
-  }, [id]);
-  
-  // Update the sessionStorage whenever the isBulkEditing state changes
-  useEffect(() => {
-    if (id) {
-      console.log(`[DEBUG] Saving bulk edit state to sessionStorage: ${isBulkEditing}`);
-      setBulkEditingState(isBulkEditing);
-    }
-  }, [isBulkEditing, id]);
-
   const { 
     showSaveDialog, 
     setShowSaveDialog, 
@@ -205,33 +152,38 @@ export default function TimelinePage() {
     }
   }, [id, dispatch]);
 
+  // Initialize disableRefetchUntil from sessionStorage on mount
   useEffect(() => {
-    console.log(`[DEBUG] isBulkEditing state changed to: ${isBulkEditing}`);
-    
-    // If we're entering bulk edit mode, reset the flag
-    if (isBulkEditing) {
-      justExitedBulkEditRef.current = false;
+    if (id) {
+      const storedValue = sessionStorage.getItem(`disableRefetchUntil_${id}`);
+      if (storedValue) {
+        const timestamp = parseInt(storedValue, 10);
+        console.log('[DEBUG] Recovered disableRefetchUntil for timeline', id, 'from sessionStorage:', new Date(timestamp));
+        setDisableRefetchUntil(timestamp);
+      }
     }
-  }, [isBulkEditing]);
+  }, [id]);
 
   const { data: existingTimeline, isLoading, error: timelineError } = useQuery<Timeline>({
     queryKey: [`/api/timelines/${id}`],
-    enabled: !!id && !isBulkEditing && Date.now() > getDisableRefetchUntil(),
+    enabled: !!id,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
     refetchOnReconnect: false,
     retry: false,
-    staleTime: 60 * 1000,
-    refetchInterval: getDisableRefetchUntil() > Date.now() ? false : undefined,
     queryFn: async () => {
-      const disableUntil = getDisableRefetchUntil();
-      console.log(`[DEBUG] Query executing - isBulkEditing: ${isBulkEditing}, id: ${id}, disableRefetchUntil: ${disableUntil}, now: ${Date.now()}, disabled: ${disableUntil > Date.now()}`);
+      // Check if we should disable refetching from sessionStorage first
+      const storedValue = sessionStorage.getItem(`disableRefetchUntil_${id}`);
+      const storedTimestamp = storedValue ? parseInt(storedValue, 10) : null;
+      const effectiveTimestamp = storedTimestamp || disableRefetchUntil;
       
-      if (disableUntil > Date.now()) {
-        console.log('[DEBUG] Aborting query - refetch is disabled');
-        throw new Error('Refetch is currently disabled');
+      if (effectiveTimestamp && Date.now() < effectiveTimestamp) {
+        console.log('[DEBUG] Skipping refetch for timeline', id, 'until', new Date(effectiveTimestamp));
+        // Return the current data if available
+        const currentData = queryClient.getQueryData<Timeline>([`/api/timelines/${id}`]);
+        if (currentData) return currentData;
       }
-      
+
+      console.log(`Fetching timeline with ID: ${id}`);
       try {
         const response = await fetchWithAuth(`/api/timelines/${id}`);
         if (!response.ok) {
@@ -260,31 +212,7 @@ export default function TimelinePage() {
   }, [timelineError, toast]);
 
   useEffect(() => {
-    // Always check the disable refetch time first, as it's the most reliable
-    const disableRefetchUntil = getDisableRefetchUntil();
-    const now = Date.now();
-    const refetchDisabled = disableRefetchUntil > now;
-    
-    // Skip if we're in bulk edit mode or refetch is disabled
-    if (isBulkEditing || refetchDisabled) {
-      console.log(`[DEBUG] Skipping timeline processing - isBulkEditing: ${isBulkEditing}, refetchDisabled: ${refetchDisabled}`);
-      return;
-    }
-    
     if (!existingTimeline) return;
-    
-    console.log('[DEBUG] existingTimeline useEffect triggered - isBulkEditing:', isBulkEditing, 
-      'justExitedBulkEditRef:', justExitedBulkEditRef.current, 
-      'disableRefetchUntil:', getDisableRefetchUntil(), 
-      'refetchDisabled:', refetchDisabled, 
-      'now:', now);
-    
-    // Skip processing if we just exited bulk edit mode
-    if (justExitedBulkEditRef.current) {
-      console.log('[DEBUG] Skipping timeline reload due to bulk edit flags');
-      justExitedBulkEditRef.current = false;
-      return;
-    }
     
     if (existingTimeline && id) {
       console.log('Loading timeline:', existingTimeline);
@@ -296,12 +224,9 @@ export default function TimelinePage() {
         location: existingTimeline.location || '',
         customFieldValues: existingTimeline.customFieldValues || {},
       }));
-      
-      // Make sure to preserve these settings
       setShowCategories(existingTimeline.categoriesEnabled);
       setShowVendors(existingTimeline.vendorsEnabled);
       
-      // Process and store categories
       const mappedCategories = existingTimeline.categories
         .sort(sortByOrder)
         .map((cat: {
@@ -317,27 +242,22 @@ export default function TimelinePage() {
         }));
       setCategories(mappedCategories);
       
-      // Process and store events, ensuring categoryId is preserved
       existingTimeline.events
         .sort(sortByOrder)
         .forEach(event => {
-          // Find category name from categoryId for display purposes
           const categoryName = event.categoryId
             ? existingTimeline.categories.find(c => c.id === event.categoryId)?.name
             : undefined;
-            
-          // Add the item with both categoryId and category name preserved
           dispatch(addItem({
             id: event.id.toString(),
             startTime: event.startTime,
-            endTime: event.endTime || event.startTime, // Ensure endTime has a fallback
+            endTime: event.endTime,
             duration: event.duration,
             title: event.title,
             description: event.description || '',
             location: event.location || '',
             type: event.type,
-            category: categoryName, // For display
-            categoryId: event.categoryId, // Critical to preserve this!
+            category: categoryName,
             vendors: event.vendors?.map(v => ({
               id: v.id.toString(),
               name: v.name,
@@ -346,9 +266,6 @@ export default function TimelinePage() {
             }))
           }));
         });
-        
-      console.log('[DEBUG] Timeline loaded with categories enabled:', existingTimeline.categoriesEnabled, 
-                 'Category count:', existingTimeline.categories.length);
     }
   }, [existingTimeline, id, dispatch]);
 
@@ -378,13 +295,11 @@ export default function TimelinePage() {
         category?: string;
         order: number;
       }>;
-      shouldNavigate?: boolean;
-      skipInvalidation?: boolean;
     }) => {
       const endpoint = id ? `/api/timelines/${id}` : '/api/timelines';
       const method = id ? 'PUT' : 'POST';
 
-      const payload = {
+      const payload = data || {
         title: weddingInfo.names,
         date: weddingInfo.date,
         type: weddingInfo.type,
@@ -410,20 +325,16 @@ export default function TimelinePage() {
           categoryId: item.categoryId,
           order: index,
         })),
-        ...(data || {}),
-        skipInvalidation: data?.skipInvalidation === true
       };
 
-      const { shouldNavigate, skipInvalidation, ...serverPayload } = payload as any;
-
-      console.log(`Saving timeline ${id ? 'update' : 'creation'}:`, serverPayload);
+      console.log(`Saving timeline ${id ? 'update' : 'creation'}:`, payload);
       
       const response = await fetchWithAuth(endpoint, {
         method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(serverPayload),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -432,30 +343,26 @@ export default function TimelinePage() {
         throw new Error(`Failed to save timeline: ${errorText}`);
       }
 
-      return { 
-        data: await response.json(), 
-        shouldNavigate: shouldNavigate !== false,
-        skipInvalidation: skipInvalidation === true
-      };
+      return response.json();
     },
-    onSuccess: (result) => {
-      console.log('[DEBUG] saveMutation.onSuccess - skipInvalidation:', result.skipInvalidation, 'shouldNavigate:', result.shouldNavigate);
+    onSuccess: () => {
       toast({
         title: "Success",
         description: "Timeline saved successfully",
       });
       
-      if (!result.skipInvalidation) {
-        console.log('[DEBUG] Invalidating queries since skipInvalidation is false');
+      // Only invalidate queries if we're not in bulk edit mode
+      if (!bulkEditMode) {
+        console.log('[DEBUG] Timeline saved - invalidating queries since we are not in bulk edit mode');
         queryClient.invalidateQueries({ queryKey: ['/api/timelines'] });
         if (id) {
           queryClient.invalidateQueries({ queryKey: [`/api/timelines/${id}`] });
         }
       } else {
-        console.log('[DEBUG] Skipping query invalidation, disableRefetchUntil:', new Date(getDisableRefetchUntil()).toISOString());
+        console.log('[DEBUG] Timeline saved during bulk edit - preserving cached data');
       }
       
-      if (result.shouldNavigate && !showSaveDialog) {
+      if (!showSaveDialog) {
         navigate('/');
       }
     },
@@ -468,6 +375,28 @@ export default function TimelinePage() {
       });
     },
   });
+
+  // Effect to handle disabling refetch when bulk edit is active
+  useEffect(() => {
+    if (bulkEditMode) {
+      const disableUntil = Date.now() + 300000; // 5 minutes
+      console.log('[DEBUG] Setting disableRefetchUntil for timeline', id, 'until', new Date(disableUntil));
+      // Store in sessionStorage to persist between component remounts
+      sessionStorage.setItem(`disableRefetchUntil_${id}`, disableUntil.toString());
+      // Also update state
+      setDisableRefetchUntil(disableUntil);
+    } else if (id) {
+      // When bulk edit is turned off, check if we need to clean up
+      console.log('[DEBUG] Bulk edit mode turned off for timeline', id);
+      
+      // Only clean up if we're not in the middle of a save operation
+      if (!saveMutation.isPending) {
+        console.log('[DEBUG] Clearing disableRefetchUntil for timeline', id);
+        sessionStorage.removeItem(`disableRefetchUntil_${id}`);
+        setDisableRefetchUntil(null);
+      }
+    }
+  }, [bulkEditMode, id, saveMutation.isPending]);
 
   const createTemplateMutation = useMutation({
     mutationFn: async () => {
@@ -555,7 +484,6 @@ export default function TimelinePage() {
           categoryId: item.categoryId,
           order: index,
         })),
-        shouldNavigate: true
       });
       setShowSaveDialog(false);
       if (navigationPath) {
@@ -628,130 +556,6 @@ export default function TimelinePage() {
 
   const handleDeleteItem = (id: string) => {
     dispatch(deleteItem(id));
-  };
-
-  const handleEnterBulkEditMode = (isEntering: boolean) => {
-    console.log(`[DEBUG] handleEnterBulkEditMode called with value: ${isEntering}`);
-    console.log(`[DEBUG] Current bulk edit state before change: ${isBulkEditing}`);
-    
-    // If we're exiting bulk edit mode
-    if (isBulkEditing && !isEntering) {
-      console.log('[DEBUG] Exiting bulk edit mode');
-      
-      // Ask the user if they want to save changes or discard them
-      if (bulkEditChanges.hasChanges) {
-        if (window.confirm('Save your bulk edit changes?')) {
-          console.log('[DEBUG] User chose to save bulk edit changes');
-          
-          // Now we can actually save to the database
-          saveMutation.mutate({
-            title: weddingInfo.names,
-            date: weddingInfo.date,
-            type: weddingInfo.type,
-            location: weddingInfo.location,
-            categoriesEnabled: showCategories,
-            vendorsEnabled: showVendors,
-            customFieldValues: weddingInfo.customFieldValues || {},
-            categories: showCategories ? categories.map((category, index) => ({
-              name: category.name,
-              description: category.description,
-              order: category.order || index,
-              ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
-            })) : [],
-            events: items.map((item, index) => ({
-              startTime: item.startTime,
-              endTime: item.endTime || item.startTime, // Fix the NaN:NaN issue
-              duration: item.duration,
-              title: item.title,
-              description: item.description || '',
-              location: item.location || '',
-              type: item.type,
-              category: item.category,
-              categoryId: item.categoryId, // Preserve category IDs
-              order: index,
-            })),
-            shouldNavigate: false,
-            skipInvalidation: false // We want to refetch after saving explicitly
-          });
-        } else {
-          console.log('[DEBUG] User chose to discard bulk edit changes - reloading timeline');
-          
-          // Discard changes by refetching the timeline
-          const DISABLE_REFETCH_MS = 0; // Reset disable refetch time
-          setDisableRefetchUntil(DISABLE_REFETCH_MS);
-          queryClient.invalidateQueries({ queryKey: [`/api/timelines/${id}`] });
-        }
-      }
-      
-      // Reset bulk edit changes state
-      setBulkEditChanges({
-        items: [],
-        hasChanges: false
-      });
-      
-      justExitedBulkEditRef.current = true;
-    }
-    
-    setIsBulkEditing(isEntering);
-  };
-
-  // Modified syncChanges function to store changes locally during bulk edit
-  const syncChanges = () => {
-    console.log('[DEBUG] syncChanges called - current isBulkEditing state:', isBulkEditing);
-    
-    // During bulk edit, just store changes locally instead of saving to server
-    setBulkEditChanges({
-      items: items.map(item => ({ ...item })),
-      hasChanges: true
-    });
-    
-    console.log('[DEBUG] Stored bulk edit changes locally');
-    
-    // Only for demo/debug purposes - don't actually save during bulk edit
-    // Commented out actual saving to database during bulk edit
-    /*
-    // Set the refetch disable timestamp to prevent automatic refetching for 5 minutes
-    // This is much longer than needed but ensures no accidental refetches
-    const DISABLE_REFETCH_MS = 5 * 60 * 1000; // 5 minutes
-    setDisableRefetchUntil(Date.now() + DISABLE_REFETCH_MS);
-    console.log(`[DEBUG] Disabled refetching until: ${new Date(getDisableRefetchUntil()).toISOString()}`);
-    
-    // Force isBulkEditing to true to prevent refetches during save operation
-    if (!isBulkEditing) {
-      console.log('[DEBUG] Forcing isBulkEditing to true during sync');
-      setIsBulkEditing(true);
-    }
-    
-    saveMutation.mutate({
-      title: weddingInfo.names,
-      date: weddingInfo.date,
-      type: weddingInfo.type,
-      location: weddingInfo.location,
-      categoriesEnabled: showCategories,
-      vendorsEnabled: showVendors,
-      customFieldValues: weddingInfo.customFieldValues || {},
-      categories: showCategories ? categories.map((category, index) => ({
-        name: category.name,
-        description: category.description,
-        order: category.order || index,
-        ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
-      })) : [],
-      events: items.map((item, index) => ({
-        startTime: item.startTime,
-        endTime: item.endTime,
-        duration: item.duration,
-        title: item.title,
-        description: item.description || '',
-        location: item.location || '',
-        type: item.type,
-        category: item.category,
-        categoryId: item.categoryId,
-        order: index,
-      })),
-      shouldNavigate: false,
-      skipInvalidation: true
-    });
-    */
   };
 
   if (isLoading) {
@@ -866,7 +670,6 @@ export default function TimelinePage() {
                           categoryId: item.categoryId,
                           order: index,
                         })),
-                        shouldNavigate: true
                       })}
                       disabled={saveMutation.isPending || !weddingInfo.names || !weddingInfo.date}
                       className="ml-2 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200 font-medium"
@@ -914,9 +717,6 @@ export default function TimelinePage() {
                 setNewItemId={() => {}}
                 showVendors={showVendors}
                 setShowVendors={setShowVendors}
-                onSync={syncChanges}
-                onBulkEditModeChange={handleEnterBulkEditMode}
-                isBulkEditing={isBulkEditing}
               />
 
               {id && (
@@ -967,7 +767,6 @@ export default function TimelinePage() {
                       categoryId: item.categoryId,
                       order: index,
                     })),
-                    shouldNavigate: true
                   })}
                   disabled={saveMutation.isPending || !weddingInfo.names || !weddingInfo.date}
                   variant="default"
