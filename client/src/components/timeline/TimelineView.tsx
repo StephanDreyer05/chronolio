@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { deleteItem } from '@/store/timelineSlice';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, ChevronDown, ChevronRight } from 'lucide-react';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Dialog, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -91,20 +91,37 @@ export function TimelineView({
 }: TimelineViewProps) {
   const dispatch = useDispatch();
   
-  // Add direct subscription to Redux store for timeline items
+  // Always get the latest timeline items from Redux store
   const reduxItems = useSelector((state: any) => state.timeline.items);
   
-  // Use Redux items if available, otherwise fall back to props
-  const items = reduxItems.length > 0 ? reduxItems : propItems;
+  // IMPORTANT: Always use Redux items when available, never fall back to props
+  // This is critical for seeing updates after bulk edit operations
+  const items = useMemo(() => {
+    // Only use props as fallback when Redux is empty (initialization)
+    return reduxItems.length > 0 ? reduxItems : propItems;
+  }, [reduxItems, propItems]); 
   
-  // Debug logging for items
+  // Use a counter to force re-render on Redux state changes
+  const [renderKey, setRenderKey] = useState(0);
+  
+  // Force re-render when Redux items change
   useEffect(() => {
-    console.log("TimelineView - Items updated:", { 
+    setRenderKey(prev => prev + 1);
+    
+    // Enhanced debug logging
+    console.log("TimelineView - Redux state updated:", { 
       reduxItemsCount: reduxItems.length,
       propItemsCount: propItems.length,
-      usingReduxItems: reduxItems.length > 0
+      usingReduxItems: reduxItems.length > 0,
+      renderKey: renderKey + 1,
+      // Log the actual time values for debugging
+      reduxItemTimes: reduxItems.slice(0, 3).map(item => ({ 
+        id: item.id, 
+        startTime: item.startTime,
+        endTime: item.endTime
+      }))
     });
-  }, [reduxItems, propItems]);
+  }, [reduxItems]);
   
   const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
 
@@ -177,7 +194,7 @@ export function TimelineView({
           const color = categoryObj?.color || '#6366f1'; // Default to indigo if no color is set
           
           return (
-            <div key={item.id} className="relative group">
+            <div key={`${item.id}-${renderKey}`} className="relative group">
               <TimelineItem
                 id={item.id}
                 index={index}
@@ -229,13 +246,14 @@ export function TimelineView({
     );
   }
 
+  // Render with the key to force re-render on Redux state changes
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" key={`timeline-view-${renderKey}`}>
       {showCategories && showCategoriesOnItems && categories.length > 0 ? (
         categories.map((category) => {
           const isCollapsed = collapsedCategories.includes(category.id);
           return (
-            <div key={category.id} className="bg-white dark:bg-zinc-900 rounded-lg border shadow-sm overflow-hidden">
+            <div key={`${category.id}-${renderKey}`} className="bg-white dark:bg-zinc-900 rounded-lg border shadow-sm overflow-hidden">
               <div 
                 className="flex items-center justify-between cursor-pointer bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 hover:from-purple-100 hover:to-indigo-100 dark:hover:from-purple-900/30 dark:hover:to-indigo-900/30 p-4 transition-colors"
                 onClick={() => toggleCategory(category.id)}
