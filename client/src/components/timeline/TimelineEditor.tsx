@@ -612,6 +612,29 @@ const BulkEditControls = ({
   );
 };
 
+// Add a helper function to check if refetch should be disabled (ensuring we use the same logic)
+const shouldDisableRefetch = (timelineId: number | undefined): boolean => {
+  if (!timelineId) return false;
+  
+  const disableUntilKey = `disableRefetchUntil_timeline_${timelineId}`;
+  const disableUntilTimestamp = sessionStorage.getItem(disableUntilKey);
+  
+  if (!disableUntilTimestamp) return false;
+  
+  const disableUntil = parseInt(disableUntilTimestamp, 10);
+  return disableUntil > Date.now();
+};
+
+// Add a helper to set the disable refetch flag
+const disableRefetchFor = (timelineId: number | undefined, minutes: number = 5): void => {
+  if (!timelineId) return;
+  
+  console.log(`[DEBUG] Setting disableRefetchUntil for timeline ${timelineId} for ${minutes} minutes`);
+  const disableUntilKey = `disableRefetchUntil_timeline_${timelineId}`;
+  const disableUntil = Date.now() + (minutes * 60 * 1000);
+  sessionStorage.setItem(disableUntilKey, disableUntil.toString());
+};
+
 export function TimelineEditor({
   categories,
   setCategories,
@@ -4744,12 +4767,10 @@ export function TimelineEditor({
   // Function to handle time shift for bulk edit
   const handleTimeShift = (minutes: { minutes: number }) => {
     const selectedItemsCount = selectedItems.length;
-    const { bulkEditMode } = useSelector((state: RootState) => state.timeline);
     
-    // Force bulk edit mode to stay on during the operation
-    if (!bulkEditMode) {
-      console.log('[DEBUG] Forcing bulk edit mode to true during time adjustment');
-      dispatch(setBulkEditMode(true));
+    if (timelineId) {
+      // Ensure refetch is disabled when making bulk changes
+      disableRefetchFor(timelineId, 5);
     }
     
     dispatch(adjustSelectedTimes(minutes));
@@ -4762,16 +4783,6 @@ export function TimelineEditor({
       description: `${selectedItemsCount} item${selectedItemsCount !== 1 ? 's' : ''} moved ${absoluteMinutes} minute${absoluteMinutes !== 1 ? 's' : ''} ${direction}`,
       variant: "default",
     });
-    
-    // Set a cleanup timer to ensure bulk edit mode isn't turned off too early
-    // Only do this if we're in a regular timeline (not trial mode)
-    if (!isTrial && typeof id === 'string' && id) {
-      const timelineId = parseInt(id, 10);
-      if (!isNaN(timelineId)) {
-        console.log('[DEBUG] Setting cleanup delay to keep bulk edit mode active for timeline', timelineId);
-        // We'll let the useEffect in TimelinePage handle the actual refetch prevention
-      }
-    }
   };
   
   // Function to handle selecting all items in a category
@@ -5332,6 +5343,18 @@ export function TimelineEditor({
           variant: "destructive",
         });
       });
+  };
+
+  // Update bulk edit button click handler
+  const handleToggleBulkEditMode = () => {
+    const newBulkEditMode = !bulkEditMode;
+    
+    if (newBulkEditMode && timelineId) {
+      // When entering bulk edit mode, disable refetching
+      disableRefetchFor(timelineId, 5);
+    }
+    
+    dispatch(setBulkEditMode(newBulkEditMode));
   };
 
   return (
@@ -5922,7 +5945,7 @@ export function TimelineEditor({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => dispatch(setBulkEditMode(!bulkEditMode))}
+                onClick={handleToggleBulkEditMode}
                 className={bulkEditMode ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-white dark:bg-zinc-900"}
               >
                 <Edit2 className={`h-4 w-4 mr-2 ${bulkEditMode ? 'text-white' : 'text-purple-600'}`} />

@@ -97,6 +97,29 @@ interface Timeline {
 
 const sortByOrder = (a: { order: number }, b: { order: number }) => a.order - b.order;
 
+// Add a helper function to check if refetch should be disabled
+const shouldDisableRefetch = (timelineId: number | undefined): boolean => {
+  if (!timelineId) return false;
+  
+  const disableUntilKey = `disableRefetchUntil_timeline_${timelineId}`;
+  const disableUntilTimestamp = sessionStorage.getItem(disableUntilKey);
+  
+  if (!disableUntilTimestamp) return false;
+  
+  const disableUntil = parseInt(disableUntilTimestamp, 10);
+  return disableUntil > Date.now();
+};
+
+// Add a helper to set the disable refetch flag
+const disableRefetchFor = (timelineId: number | undefined, minutes: number = 5): void => {
+  if (!timelineId) return;
+  
+  console.log(`[DEBUG] Setting disableRefetchUntil for timeline ${timelineId} for ${minutes} minutes`);
+  const disableUntilKey = `disableRefetchUntil_timeline_${timelineId}`;
+  const disableUntil = Date.now() + (minutes * 60 * 1000);
+  sessionStorage.setItem(disableUntilKey, disableUntil.toString());
+};
+
 export default function TimelinePage() {
   const { id } = useParams();
   const [, navigate] = useLocation();
@@ -104,7 +127,7 @@ export default function TimelinePage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { collapsed } = useSidebar();
-  const { items, weddingInfo, bulkEditMode } = useSelector((state: RootState) => state.timeline);
+  const { items, weddingInfo } = useSelector((state: RootState) => state.timeline);
   const [showCategories, setShowCategories] = useState(false);
   const [showEndTimes, setShowEndTimes] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -112,7 +135,6 @@ export default function TimelinePage() {
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [showVendors, setShowVendors] = useState(false);
-  const [disableRefetchUntil, setDisableRefetchUntil] = useState<number | null>(null);
   
   const { 
     showSaveDialog, 
@@ -152,18 +174,6 @@ export default function TimelinePage() {
     }
   }, [id, dispatch]);
 
-  // Initialize disableRefetchUntil from sessionStorage on mount
-  useEffect(() => {
-    if (id) {
-      const storedValue = sessionStorage.getItem(`disableRefetchUntil_${id}`);
-      if (storedValue) {
-        const timestamp = parseInt(storedValue, 10);
-        console.log('[DEBUG] Recovered disableRefetchUntil for timeline', id, 'from sessionStorage:', new Date(timestamp));
-        setDisableRefetchUntil(timestamp);
-      }
-    }
-  }, [id]);
-
   const { data: existingTimeline, isLoading, error: timelineError } = useQuery<Timeline>({
     queryKey: [`/api/timelines/${id}`],
     enabled: !!id,
@@ -171,19 +181,16 @@ export default function TimelinePage() {
     refetchOnReconnect: false,
     retry: false,
     queryFn: async () => {
-      // Check if we should disable refetching from sessionStorage first
-      const storedValue = sessionStorage.getItem(`disableRefetchUntil_${id}`);
-      const storedTimestamp = storedValue ? parseInt(storedValue, 10) : null;
-      const effectiveTimestamp = storedTimestamp || disableRefetchUntil;
-      
-      if (effectiveTimestamp && Date.now() < effectiveTimestamp) {
-        console.log('[DEBUG] Skipping refetch for timeline', id, 'until', new Date(effectiveTimestamp));
-        // Return the current data if available
-        const currentData = queryClient.getQueryData<Timeline>([`/api/timelines/${id}`]);
-        if (currentData) return currentData;
-      }
-
       console.log(`Fetching timeline with ID: ${id}`);
+      
+      // Check if we should disable refetch for bulk editing
+      if (id && shouldDisableRefetch(parseInt(id, 10))) {
+        console.log(`[DEBUG] Refetch disabled for timeline ${id}`);
+        // Return the existing data from the query client to prevent refetching
+        const existing = queryClient.getQueryData([`/api/timelines/${id}`]) as Timeline;
+        if (existing) return existing;
+      }
+      
       try {
         const response = await fetchWithAuth(`/api/timelines/${id}`);
         if (!response.ok) {
@@ -269,6 +276,16 @@ export default function TimelinePage() {
     }
   }, [existingTimeline, id, dispatch]);
 
+  // Handle bulk edit mode changes
+  const { bulkEditMode } = useSelector((state: RootState) => state.timeline);
+  
+  useEffect(() => {
+    if (bulkEditMode && id) {
+      // When entering bulk edit mode, disable refetching for 5 minutes
+      disableRefetchFor(parseInt(id, 10), 5);
+    }
+  }, [bulkEditMode, id]);
+
   const saveMutation = useMutation({
     mutationFn: async (data?: {
       title: string;
@@ -343,6 +360,11 @@ export default function TimelinePage() {
         throw new Error(`Failed to save timeline: ${errorText}`);
       }
 
+      if (id && bulkEditMode) {
+        // Extend the refetch disable time during save in bulk edit mode
+        disableRefetchFor(parseInt(id, 10), 5);
+      }
+
       return response.json();
     },
     onSuccess: () => {
@@ -350,18 +372,10 @@ export default function TimelinePage() {
         title: "Success",
         description: "Timeline saved successfully",
       });
-      
-      // Only invalidate queries if we're not in bulk edit mode
-      if (!bulkEditMode) {
-        console.log('[DEBUG] Timeline saved - invalidating queries since we are not in bulk edit mode');
-        queryClient.invalidateQueries({ queryKey: ['/api/timelines'] });
-        if (id) {
-          queryClient.invalidateQueries({ queryKey: [`/api/timelines/${id}`] });
-        }
-      } else {
-        console.log('[DEBUG] Timeline saved during bulk edit - preserving cached data');
+      queryClient.invalidateQueries({ queryKey: ['/api/timelines'] });
+      if (id) {
+        queryClient.invalidateQueries({ queryKey: [`/api/timelines/${id}`] });
       }
-      
       if (!showSaveDialog) {
         navigate('/');
       }
@@ -375,28 +389,6 @@ export default function TimelinePage() {
       });
     },
   });
-
-  // Effect to handle disabling refetch when bulk edit is active
-  useEffect(() => {
-    if (bulkEditMode) {
-      const disableUntil = Date.now() + 300000; // 5 minutes
-      console.log('[DEBUG] Setting disableRefetchUntil for timeline', id, 'until', new Date(disableUntil));
-      // Store in sessionStorage to persist between component remounts
-      sessionStorage.setItem(`disableRefetchUntil_${id}`, disableUntil.toString());
-      // Also update state
-      setDisableRefetchUntil(disableUntil);
-    } else if (id) {
-      // When bulk edit is turned off, check if we need to clean up
-      console.log('[DEBUG] Bulk edit mode turned off for timeline', id);
-      
-      // Only clean up if we're not in the middle of a save operation
-      if (!saveMutation.isPending) {
-        console.log('[DEBUG] Clearing disableRefetchUntil for timeline', id);
-        sessionStorage.removeItem(`disableRefetchUntil_${id}`);
-        setDisableRefetchUntil(null);
-      }
-    }
-  }, [bulkEditMode, id, saveMutation.isPending]);
 
   const createTemplateMutation = useMutation({
     mutationFn: async () => {

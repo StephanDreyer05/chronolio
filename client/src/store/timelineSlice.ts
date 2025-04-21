@@ -136,9 +136,21 @@ const timelineSlice = createSlice({
       }
     },
     setBulkEditMode(state, action: PayloadAction<boolean>) {
+      // Store previous state
+      const wasInBulkEditMode = state.bulkEditMode;
+      
+      // Update to new state
       state.bulkEditMode = action.payload;
-      if (!action.payload) {
+      
+      // If we're exiting bulk edit mode, clear selected items
+      if (!action.payload && wasInBulkEditMode) {
         state.selectedItems = [];
+        console.log("[DEBUG] Exiting bulk edit mode and clearing selection");
+      }
+      
+      // If we're entering bulk edit mode, log it
+      if (action.payload && !wasInBulkEditMode) {
+        console.log("[DEBUG] Entering bulk edit mode");
       }
     },
     toggleItemSelection(state, action: PayloadAction<string>) {
