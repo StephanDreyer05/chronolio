@@ -112,6 +112,7 @@ export default function TimelinePage() {
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [showVendors, setShowVendors] = useState(false);
+  const [isBulkEditing, setIsBulkEditing] = useState(false);
   
   const { 
     showSaveDialog, 
@@ -153,8 +154,10 @@ export default function TimelinePage() {
 
   const { data: existingTimeline, isLoading, error: timelineError } = useQuery<Timeline>({
     queryKey: [`/api/timelines/${id}`],
-    enabled: !!id,
+    enabled: !!id && !isBulkEditing,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    staleTime: 60 * 1000,
     queryFn: async () => {
       console.log(`Fetching timeline with ID: ${id}`);
       try {
@@ -269,6 +272,7 @@ export default function TimelinePage() {
         order: number;
       }>;
       shouldNavigate?: boolean;
+      skipInvalidation?: boolean;
     }) => {
       const endpoint = id ? `/api/timelines/${id}` : '/api/timelines';
       const method = id ? 'PUT' : 'POST';
@@ -299,10 +303,11 @@ export default function TimelinePage() {
           categoryId: item.categoryId,
           order: index,
         })),
-        ...(data || {})
+        ...(data || {}),
+        skipInvalidation: data?.skipInvalidation === true
       };
 
-      const { shouldNavigate, ...serverPayload } = payload as any;
+      const { shouldNavigate, skipInvalidation, ...serverPayload } = payload as any;
 
       console.log(`Saving timeline ${id ? 'update' : 'creation'}:`, serverPayload);
       
@@ -322,7 +327,8 @@ export default function TimelinePage() {
 
       return { 
         data: await response.json(), 
-        shouldNavigate: shouldNavigate !== false
+        shouldNavigate: shouldNavigate !== false,
+        skipInvalidation: skipInvalidation === true
       };
     },
     onSuccess: (result) => {
@@ -330,10 +336,16 @@ export default function TimelinePage() {
         title: "Success",
         description: "Timeline saved successfully",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/timelines'] });
-      if (id) {
-        queryClient.invalidateQueries({ queryKey: [`/api/timelines/${id}`] });
+      
+      if (!result.skipInvalidation) {
+        queryClient.invalidateQueries({ queryKey: ['/api/timelines'] });
+        if (id) {
+          queryClient.invalidateQueries({ queryKey: [`/api/timelines/${id}`] });
+        }
+      } else {
+        setTimeout(() => setIsBulkEditing(false), 100);
       }
+      
       if (result.shouldNavigate && !showSaveDialog) {
         navigate('/');
       }
@@ -509,7 +521,14 @@ export default function TimelinePage() {
     dispatch(deleteItem(id));
   };
 
+  const handleEnterBulkEditMode = (isEntering: boolean) => {
+    console.log(`${isEntering ? 'Entering' : 'Exiting'} bulk edit mode`);
+    setIsBulkEditing(isEntering);
+  };
+
   const syncChanges = () => {
+    setIsBulkEditing(true);
+    
     saveMutation.mutate({
       title: weddingInfo.names,
       date: weddingInfo.date,
@@ -536,7 +555,8 @@ export default function TimelinePage() {
         categoryId: item.categoryId,
         order: index,
       })),
-      shouldNavigate: false
+      shouldNavigate: false,
+      skipInvalidation: true
     });
   };
 
@@ -701,6 +721,8 @@ export default function TimelinePage() {
                 showVendors={showVendors}
                 setShowVendors={setShowVendors}
                 onSync={syncChanges}
+                onBulkEditModeChange={handleEnterBulkEditMode}
+                isBulkEditing={isBulkEditing}
               />
 
               {id && (

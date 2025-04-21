@@ -232,6 +232,8 @@ interface TimelineEditorProps {
   isTrial?: boolean;
   onExport?: () => void; // Function to trigger external export dialog in trial mode
   onSync?: () => void; // Function to sync changes with the server for logged-in users
+  onBulkEditModeChange?: (isEntering: boolean) => void; // Function to notify parent when bulk edit mode changes
+  isBulkEditing?: boolean; // Flag indicating if bulk editing is in progress
 }
 
 interface TimelineItem {
@@ -629,6 +631,8 @@ export function TimelineEditor({
   isTrial = false,
   onExport,
   onSync,
+  onBulkEditModeChange,
+  isBulkEditing,
 }: TimelineEditorProps) {
   // Show specific buttons based on trial mode
   const shouldShowTemplatesButton = !isTrial;
@@ -4746,6 +4750,13 @@ export function TimelineEditor({
   // Function to handle time shift for bulk edit
   const handleTimeShift = (minutes: { minutes: number }) => {
     const selectedItemsCount = selectedItems.length;
+    
+    // Debug logging - only in trial mode to compare behavior
+    if (isTrial) {
+      console.log("TRIAL MODE - handleTimeShift called with minutes:", minutes);
+      console.log("TRIAL MODE - Selected items:", selectedItems);
+    }
+
     dispatch(adjustSelectedTimes(minutes));
     
     // Show toast notification
@@ -4759,6 +4770,8 @@ export function TimelineEditor({
 
     // If a sync function is provided (for logged-in users), call it to save changes to the server
     if (!isTrial && !isTemplate && onSync) {
+      // Add debug log
+      console.log("Syncing bulk edit changes to server");
       onSync();
     }
   };
@@ -5322,6 +5335,12 @@ export function TimelineEditor({
         });
       });
   };
+
+  useEffect(() => {
+    if (onBulkEditModeChange && bulkEditMode !== undefined) {
+      onBulkEditModeChange(bulkEditMode);
+    }
+  }, [bulkEditMode, onBulkEditModeChange]);
 
   return (
     <div className="space-y-6">
@@ -5913,6 +5932,7 @@ export function TimelineEditor({
                 size="sm"
                 onClick={() => dispatch(setBulkEditMode(!bulkEditMode))}
                 className={bulkEditMode ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-white dark:bg-zinc-900"}
+                disabled={isBulkEditing} // Prevent toggling during bulk edit operations
               >
                 <Edit2 className={`h-4 w-4 mr-2 ${bulkEditMode ? 'text-white' : 'text-purple-600'}`} />
                 {bulkEditMode ? "Exit Bulk Edit" : "Bulk Edit"}
