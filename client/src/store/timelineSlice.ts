@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction, AnyAction } from '@reduxjs/toolkit';
 
 interface TimelineItem {
   id: string;
@@ -50,28 +50,84 @@ const initialState: TimelineState = {
   bulkEditMode: false,
 };
 
+// Helper function to parse HH:MM time string to total minutes
+const parseTime = (timeStr: string): number => {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  if (isNaN(hours) || isNaN(minutes)) {
+      console.error(`Invalid time format for parsing: ${timeStr}`);
+      return 0; // Return 0 or handle error appropriately
+  }
+  return hours * 60 + minutes;
+};
+
+// Helper function to parse duration string (e.g., "60", "90m", "1h 30m") to minutes
+const parseDuration = (durationStr: string): number => {
+  if (!durationStr) return 0;
+
+  // Try parsing as a plain number first (assumed minutes)
+  const durationNum = parseInt(durationStr, 10);
+  if (!isNaN(durationNum) && durationStr.match(/^\d+$/)) {
+      return durationNum;
+  }
+    
+  let totalMinutes = 0;
+  const hourMatch = durationStr.match(/(\d+(\.\d+)?)\s*h/); // Allow float for hours
+  const minMatch = durationStr.match(/(\d+)\s*m/);
+
+  if (hourMatch) {
+      totalMinutes += parseFloat(hourMatch[1]) * 60;
+  }
+  if (minMatch) {
+      totalMinutes += parseInt(minMatch[1], 10);
+  }
+    
+  // Fallback if no units were found but it could be parsed as a number earlier
+  if (totalMinutes === 0 && !isNaN(durationNum)) {
+     return durationNum;
+  }
+
+  if (totalMinutes === 0 && durationStr) {
+    console.warn(`Could not parse duration: ${durationStr}. Assuming 0 minutes.`);
+  }
+
+  // Ensure we return an integer number of minutes
+  return Math.round(totalMinutes);
+};
+
+
+// Helper function to format total minutes to HH:MM string
+const formatTime = (totalMinutes: number): string => {
+  totalMinutes = Math.round(totalMinutes) % (24 * 60); // Ensure integer and handle day wrap around
+  if (totalMinutes < 0) {
+    totalMinutes += 24 * 60; // Handle negative wrap around
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
 const timelineSlice = createSlice({
   name: 'timeline',
   initialState,
   reducers: {
-    resetTimeline: () => initialState,
-    setItems(state, action: PayloadAction<TimelineItem[]>) {
+    resetTimeline: (state: TimelineState) => initialState,
+    setItems(state: TimelineState, action: PayloadAction<TimelineItem[]>) {
       state.past.push([...state.items]);
       state.items = action.payload;
       state.future = [];
       state.canUndo = true;
       state.canRedo = false;
     },
-    addItem(state, action: PayloadAction<TimelineItem>) {
+    addItem(state: TimelineState, action: PayloadAction<TimelineItem>) {
       state.past.push([...state.items]);
       state.items.push(action.payload);
       state.future = [];
       state.canUndo = true;
       state.canRedo = false;
     },
-    updateItem(state, action: PayloadAction<{ id: string; updates: Partial<TimelineItem> }>) {
+    updateItem(state: TimelineState, action: PayloadAction<{ id: string; updates: Partial<TimelineItem> }>) {
       state.past.push([...state.items]);
-      const index = state.items.findIndex(item => item.id === action.payload.id);
+      const index = state.items.findIndex((item: TimelineItem) => item.id === action.payload.id);
       if (index !== -1) {
         state.items[index] = { ...state.items[index], ...action.payload.updates };
       }
@@ -79,14 +135,14 @@ const timelineSlice = createSlice({
       state.canUndo = true;
       state.canRedo = false;
     },
-    deleteItem(state, action: PayloadAction<string>) {
+    deleteItem(state: TimelineState, action: PayloadAction<string>) {
       state.past.push([...state.items]);
-      state.items = state.items.filter(item => item.id !== action.payload);
+      state.items = state.items.filter((item: TimelineItem) => item.id !== action.payload);
       state.future = [];
       state.canUndo = true;
       state.canRedo = false;
     },
-    moveItem(state, action: PayloadAction<{ dragIndex: number; hoverIndex: number }>) {
+    moveItem(state: TimelineState, action: PayloadAction<{ dragIndex: number; hoverIndex: number }>) {
       state.past.push([...state.items]);
       const { dragIndex, hoverIndex } = action.payload;
       const dragItem = state.items[dragIndex];
@@ -96,14 +152,14 @@ const timelineSlice = createSlice({
       state.canUndo = true;
       state.canRedo = false;
     },
-    sortItems(state) {
+    sortItems(state: TimelineState) {
       state.past.push([...state.items]);
-      state.items.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      state.items.sort((a: TimelineItem, b: TimelineItem) => a.startTime.localeCompare(b.startTime));
       state.future = [];
       state.canUndo = true;
       state.canRedo = false;
     },
-    updateWeddingInfo(state, action: PayloadAction<Partial<WeddingInfo>>) {
+    updateWeddingInfo(state: TimelineState, action: PayloadAction<Partial<WeddingInfo>>) {
       if (action.payload.date) {
         const date = new Date(action.payload.date);
         if (!isNaN(date.getTime())) {
@@ -117,7 +173,7 @@ const timelineSlice = createSlice({
         state.weddingInfo = { ...state.weddingInfo, ...action.payload };
       }
     },
-    undo(state) {
+    undo(state: TimelineState) {
       if (state.past.length > 0) {
         const previous = state.past.pop()!;
         state.future.push([...state.items]);
@@ -126,7 +182,7 @@ const timelineSlice = createSlice({
         state.canRedo = true;
       }
     },
-    redo(state) {
+    redo(state: TimelineState) {
       if (state.future.length > 0) {
         const next = state.future.pop()!;
         state.past.push([...state.items]);
@@ -135,13 +191,13 @@ const timelineSlice = createSlice({
         state.canRedo = state.future.length > 0;
       }
     },
-    setBulkEditMode(state, action: PayloadAction<boolean>) {
+    setBulkEditMode(state: TimelineState, action: PayloadAction<boolean>) {
       state.bulkEditMode = action.payload;
       if (!action.payload) {
         state.selectedItems = [];
       }
     },
-    toggleItemSelection(state, action: PayloadAction<string>) {
+    toggleItemSelection(state: TimelineState, action: PayloadAction<string>) {
       const index = state.selectedItems.indexOf(action.payload);
       if (index === -1) {
         state.selectedItems.push(action.payload);
@@ -149,86 +205,57 @@ const timelineSlice = createSlice({
         state.selectedItems.splice(index, 1);
       }
     },
-    selectAllInCategory(state, action: PayloadAction<string>) {
+    selectAllInCategory(state: TimelineState, action: PayloadAction<string>) {
       const categoryItems = state.items
-        .filter(item => item.category === action.payload)
-        .map(item => item.id);
+        .filter((item: TimelineItem) => item.category === action.payload)
+        .map((item: TimelineItem) => item.id);
 
       const newSet = new Set([...state.selectedItems]);
       categoryItems.forEach(id => newSet.add(id));
       state.selectedItems = Array.from(newSet);
     },
-    clearSelection(state) {
+    clearSelection(state: TimelineState) {
       state.selectedItems = [];
     },
-    adjustSelectedTimes(state, action: PayloadAction<{ minutes: number }>) {
+    adjustSelectedTimes(state: TimelineState, action: PayloadAction<{ minutes: number }>) {
       if (state.selectedItems.length === 0) return;
 
-      console.log("REDUX: Adjusting selected times", {
-        minutes: action.payload.minutes,
-        selectedItems: state.selectedItems,
-        itemsCount: state.items.length,
-      });
-
       state.past.push([...state.items]);
-      state.items = state.items.map(item => {
+      state.items = state.items.map((item: TimelineItem) => {
         if (state.selectedItems.includes(item.id)) {
-          console.log(`REDUX: Adjusting item ${item.id}`, { 
-            before: { startTime: item.startTime, endTime: item.endTime },
-          });
-          
-          // Update start time
-          const [startHours, startMinutes] = item.startTime.split(':').map(Number);
-          let startTotalMinutes = startHours * 60 + startMinutes + action.payload.minutes;
+          // Parse start time and duration
+          const startMinutes = parseTime(item.startTime);
+          const durationMinutes = parseDuration(item.duration); // Use helper
 
-          // Handle day wrapping
-          while (startTotalMinutes < 0) startTotalMinutes += 24 * 60;
-          startTotalMinutes = startTotalMinutes % (24 * 60);
+          // Calculate new start time in minutes
+          let newStartMinutes = startMinutes + action.payload.minutes;
 
-          const newStartHours = Math.floor(startTotalMinutes / 60);
-          const newStartMinutes = startTotalMinutes % 60;
-          const newStartTime = `${String(newStartHours).padStart(2, '0')}:${String(newStartMinutes).padStart(2, '0')}`;
+          // Calculate new end time in minutes
+          const newEndMinutes = newStartMinutes + durationMinutes;
 
-          // Update end time if present
-          let newEndTime = item.endTime;
-          if (item.endTime && item.endTime.includes(':')) {
-            const [endHours, endMinutes] = item.endTime.split(':').map(Number);
-            let endTotalMinutes = endHours * 60 + endMinutes + action.payload.minutes;
-            
-            // Handle day wrapping
-            while (endTotalMinutes < 0) endTotalMinutes += 24 * 60;
-            endTotalMinutes = endTotalMinutes % (24 * 60);
-            
-            const newEndHours = Math.floor(endTotalMinutes / 60);
-            const newEndMinutes = endTotalMinutes % 60;
-            newEndTime = `${String(newEndHours).padStart(2, '0')}:${String(newEndMinutes).padStart(2, '0')}`;
-          }
+          // Format back to HH:MM strings
+          const newStartTimeStr = formatTime(newStartMinutes);
+          const newEndTimeStr = formatTime(newEndMinutes);
 
-          const updatedItem = {
+          return {
             ...item,
-            startTime: newStartTime,
-            endTime: newEndTime
+            startTime: newStartTimeStr,
+            endTime: newEndTimeStr, // Update endTime
+            // Duration remains unchanged conceptually, but endTime reflects the shift
           };
-          
-          console.log(`REDUX: Item ${item.id} adjusted`, { 
-            after: { startTime: updatedItem.startTime, endTime: updatedItem.endTime },
-          });
-          
-          return updatedItem;
         }
         return item;
       });
 
-      console.log("REDUX: State updated successfully");
       state.future = [];
       state.canUndo = true;
       state.canRedo = false;
     },
-    deleteSelectedItems(state) {
+    deleteSelectedItems(state: TimelineState) {
       if (state.selectedItems.length === 0) return;
 
       state.past.push([...state.items]);
-      state.items = state.items.filter(item => !state.selectedItems.includes(item.id));
+      state.items = state.items.filter((item: TimelineItem) => !state.selectedItems.includes(item.id));
       state.selectedItems = [];
       state.future = [];
       state.canUndo = true;
@@ -256,8 +283,6 @@ export const {
   deleteSelectedItems,
 } = timelineSlice.actions;
 
-export type RootState = {
-  timeline: TimelineState;
-};
+export type RootState = ReturnType<typeof timelineSlice.reducer>;
 
 export default timelineSlice.reducer;

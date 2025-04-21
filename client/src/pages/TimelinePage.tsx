@@ -104,7 +104,7 @@ export default function TimelinePage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { collapsed } = useSidebar();
-  const { items, weddingInfo, bulkEditMode } = useSelector((state: RootState) => state.timeline);
+  const { items, weddingInfo } = useSelector((state: RootState) => state.timeline);
   const [showCategories, setShowCategories] = useState(false);
   const [showEndTimes, setShowEndTimes] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -112,8 +112,6 @@ export default function TimelinePage() {
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [showVendors, setShowVendors] = useState(false);
-  
-  const [skipRefetch, setSkipRefetch] = useState(false);
   
   const { 
     showSaveDialog, 
@@ -127,12 +125,6 @@ export default function TimelinePage() {
   useEffect(() => {
     setHasUnsavedChanges(items.length > 0);
   }, [items, setHasUnsavedChanges]);
-
-  useEffect(() => {
-    if (bulkEditMode) {
-      setSkipRefetch(true);
-    }
-  }, [bulkEditMode]);
 
   useEffect(() => {
     if (!id) {
@@ -159,18 +151,9 @@ export default function TimelinePage() {
     }
   }, [id, dispatch]);
 
-  useEffect(() => {
-    const bulkEditComplete = sessionStorage.getItem('bulkEditComplete');
-    if (bulkEditComplete === 'true') {
-      console.log('Bulk edit completed and saved, resetting skipRefetch flag');
-      setSkipRefetch(false);
-      sessionStorage.removeItem('bulkEditComplete');
-    }
-  }, [items]);
-
   const { data: existingTimeline, isLoading, error: timelineError } = useQuery<Timeline>({
     queryKey: [`/api/timelines/${id}`],
-    enabled: !!id && !skipRefetch,
+    enabled: !!id,
     refetchOnWindowFocus: false,
     queryFn: async () => {
       console.log(`Fetching timeline with ID: ${id}`);
@@ -202,7 +185,7 @@ export default function TimelinePage() {
   }, [timelineError, toast]);
 
   useEffect(() => {
-    if (!existingTimeline || skipRefetch) return;
+    if (!existingTimeline) return;
     
     if (existingTimeline && id) {
       console.log('Loading timeline:', existingTimeline);
@@ -257,7 +240,7 @@ export default function TimelinePage() {
           }));
         });
     }
-  }, [existingTimeline, id, dispatch, skipRefetch]);
+  }, [existingTimeline, id, dispatch]);
 
   const saveMutation = useMutation({
     mutationFn: async (data?: {
@@ -518,42 +501,6 @@ export default function TimelinePage() {
     dispatch(deleteItem(id));
   };
 
-  const saveTimeline = async () => {
-    try {
-      await saveMutation.mutateAsync({
-        title: weddingInfo.names,
-        date: weddingInfo.date,
-        type: weddingInfo.type,
-        location: weddingInfo.location,
-        categoriesEnabled: showCategories,
-        vendorsEnabled: showVendors,
-        customFieldValues: weddingInfo.customFieldValues || {},
-        categories: showCategories ? categories.map((category, index) => ({
-          name: category.name,
-          description: category.description,
-          order: category.order || index,
-          ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
-        })) : [],
-        events: items.map((item, index) => ({
-          startTime: item.startTime,
-          endTime: item.endTime,
-          duration: item.duration,
-          title: item.title,
-          description: item.description || '',
-          location: item.location || '',
-          type: item.type,
-          category: item.category,
-          categoryId: item.categoryId,
-          order: index,
-        })),
-      });
-      return Promise.resolve();
-    } catch (error) {
-      console.error('Error saving timeline:', error);
-      return Promise.reject(error);
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-zinc-950 flex items-center justify-center">
@@ -705,15 +652,14 @@ export default function TimelinePage() {
                 setShowCategories={setShowCategories}
                 showEndTimes={showEndTimes}
                 setShowEndTimes={setShowEndTimes}
-                showVendors={showVendors}
-                setShowVendors={setShowVendors}
                 isTemplate={false}
                 items={items}
                 setItems={setItems}
                 onDeleteItem={handleDeleteItem}
                 newItemId={null}
                 setNewItemId={() => {}}
-                saveTimeline={saveTimeline}
+                showVendors={showVendors}
+                setShowVendors={setShowVendors}
               />
 
               {id && (
@@ -723,13 +669,13 @@ export default function TimelinePage() {
                       <h2 className="text-2xl font-serif mb-6">
                         <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Participant Information</span>
                       </h2>
-                      <ParticipantInformation timelineId={parseInt(id)} showVendors={showVendors} />
+                      <ParticipantInformation timelineId={parseInt(id)} />
                     </div>
                   )}
-
+                  
                   <div className="mt-8 border-t pt-8">
                     <h2 className="text-2xl font-serif mb-6">
-                      <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Timeline Images</span>
+                      <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Images</span>
                     </h2>
                     <TimelineImages timelineId={parseInt(id)} />
                   </div>

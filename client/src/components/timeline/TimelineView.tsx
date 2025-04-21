@@ -1,9 +1,9 @@
 import { TimelineItem } from './TimelineItem';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { deleteItem } from '@/store/timelineSlice';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, ChevronDown, ChevronRight } from 'lucide-react';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Dialog, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -63,7 +63,7 @@ interface TimelineViewProps {
 }
 
 export function TimelineView({ 
-  items: propItems, 
+  items, 
   categories, 
   onUpdateItem, 
   onDeleteItem,
@@ -90,57 +90,7 @@ export function TimelineView({
   isPublicView = false,
 }: TimelineViewProps) {
   const dispatch = useDispatch();
-  
-  // Always get the latest timeline items from Redux store
-  const reduxItems = useSelector((state: any) => state.timeline.items);
-  
-  // IMPORTANT: Always use Redux items when available, never fall back to props
-  // This is critical for seeing updates after bulk edit operations
-  const items = useMemo(() => {
-    // Only use props as fallback when Redux is empty (initialization)
-    return reduxItems.length > 0 ? reduxItems : propItems;
-  }, [reduxItems, propItems]); 
-  
-  // Use a counter to force re-render on Redux state changes
-  const [renderKey, setRenderKey] = useState(0);
-  
-  // Force re-render when Redux items change
-  useEffect(() => {
-    setRenderKey(prev => prev + 1);
-    
-    // Enhanced debug logging
-    console.log("TimelineView - Redux state updated:", { 
-      reduxItemsCount: reduxItems.length,
-      propItemsCount: propItems.length,
-      usingReduxItems: reduxItems.length > 0,
-      renderKey: renderKey + 1,
-      // Log the actual time values for debugging
-      reduxItemTimes: reduxItems.slice(0, 3).map(item => ({ 
-        id: item.id, 
-        startTime: item.startTime,
-        endTime: item.endTime
-      }))
-    });
-  }, [reduxItems]);
-  
-  // Create a content hash from items to force re-render when data changes
-  const itemsHash = useMemo(() => {
-    // Create a simple hash based on startTime and endTime of the first few items
-    // This will force the component to re-render when these values change
-    return reduxItems.slice(0, 5).map(item => 
-      `${item.id}:${item.startTime}:${item.endTime}`
-    ).join('|');
-  }, [reduxItems]);
-  
   const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
-
-  // Prevent default behavior for all events to avoid page reloads
-  const preventDefaultForEventHandling = (e: React.MouseEvent | React.KeyboardEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  };
 
   // Debug log
   useEffect(() => {
@@ -203,7 +153,7 @@ export function TimelineView({
           const color = categoryObj?.color || '#6366f1'; // Default to indigo if no color is set
           
           return (
-            <div key={`${item.id}-${renderKey}-${itemsHash}`} className="relative group">
+            <div key={item.id} className="relative group">
               <TimelineItem
                 id={item.id}
                 index={index}
@@ -255,14 +205,13 @@ export function TimelineView({
     );
   }
 
-  // Render with the key to force re-render on Redux state changes
   return (
-    <div className="space-y-8" key={`timeline-view-${renderKey}-${itemsHash}`}>
+    <div className="space-y-8">
       {showCategories && showCategoriesOnItems && categories.length > 0 ? (
         categories.map((category) => {
           const isCollapsed = collapsedCategories.includes(category.id);
           return (
-            <div key={`${category.id}-${renderKey}-${itemsHash}`} className="bg-white dark:bg-zinc-900 rounded-lg border shadow-sm overflow-hidden">
+            <div key={category.id} className="bg-white dark:bg-zinc-900 rounded-lg border shadow-sm overflow-hidden">
               <div 
                 className="flex items-center justify-between cursor-pointer bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 hover:from-purple-100 hover:to-indigo-100 dark:hover:from-purple-900/30 dark:hover:to-indigo-900/30 p-4 transition-colors"
                 onClick={() => toggleCategory(category.id)}
