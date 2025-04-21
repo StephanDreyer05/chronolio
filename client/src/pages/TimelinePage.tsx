@@ -114,6 +114,7 @@ export default function TimelinePage() {
   const [showVendors, setShowVendors] = useState(false);
   const [isBulkEditing, setIsBulkEditing] = useState(false);
   const justExitedBulkEditRef = useRef(false);
+  const disableRefetchUntilRef = useRef(0); // Timestamp until refetching should be disabled
   
   const { 
     showSaveDialog, 
@@ -164,12 +165,12 @@ export default function TimelinePage() {
 
   const { data: existingTimeline, isLoading, error: timelineError } = useQuery<Timeline>({
     queryKey: [`/api/timelines/${id}`],
-    enabled: !!id && !isBulkEditing,
+    enabled: !!id && !isBulkEditing && Date.now() > disableRefetchUntilRef.current,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     staleTime: 60 * 1000,
     queryFn: async () => {
-      console.log(`[DEBUG] Query executing - isBulkEditing: ${isBulkEditing}, id: ${id}`);
+      console.log(`[DEBUG] Query executing - isBulkEditing: ${isBulkEditing}, id: ${id}, disableRefetchUntil: ${disableRefetchUntilRef.current}, now: ${Date.now()}`);
       try {
         const response = await fetchWithAuth(`/api/timelines/${id}`);
         if (!response.ok) {
@@ -200,10 +201,11 @@ export default function TimelinePage() {
   useEffect(() => {
     if (!existingTimeline) return;
     
-    console.log('[DEBUG] existingTimeline useEffect triggered - isBulkEditing:', isBulkEditing, 'justExitedBulkEditRef:', justExitedBulkEditRef.current);
+    console.log('[DEBUG] existingTimeline useEffect triggered - isBulkEditing:', isBulkEditing, 'justExitedBulkEditRef:', justExitedBulkEditRef.current, 'disableRefetchUntil:', disableRefetchUntilRef.current, 'now:', Date.now());
     
-    if (justExitedBulkEditRef.current) {
-      console.log('[DEBUG] Skipping timeline reload because we just exited bulk edit mode');
+    // Skip processing if we just exited bulk edit mode or if refetching is disabled
+    if (justExitedBulkEditRef.current || Date.now() < disableRefetchUntilRef.current) {
+      console.log('[DEBUG] Skipping timeline reload due to bulk edit flags');
       justExitedBulkEditRef.current = false;
       return;
     }
@@ -363,7 +365,7 @@ export default function TimelinePage() {
           queryClient.invalidateQueries({ queryKey: [`/api/timelines/${id}`] });
         }
       } else {
-        console.log('[DEBUG] Skipping query invalidation');
+        console.log('[DEBUG] Skipping query invalidation, disableRefetchUntil:', new Date(disableRefetchUntilRef.current).toISOString());
       }
       
       if (result.shouldNavigate && !showSaveDialog) {
@@ -557,6 +559,11 @@ export default function TimelinePage() {
     // Don't modify isBulkEditing state here; the TimelineEditor component 
     // should control this state based on user interactions
     console.log('[DEBUG] syncChanges called - current isBulkEditing state:', isBulkEditing);
+    
+    // Set the refetch disable timestamp to prevent automatic refetching for 5 seconds
+    const DISABLE_REFETCH_MS = 5000; // 5 seconds
+    disableRefetchUntilRef.current = Date.now() + DISABLE_REFETCH_MS;
+    console.log(`[DEBUG] Disabled refetching until: ${new Date(disableRefetchUntilRef.current).toISOString()}`);
     
     saveMutation.mutate({
       title: weddingInfo.names,
