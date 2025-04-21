@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction, AnyAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 interface TimelineItem {
   id: string;
@@ -50,84 +50,28 @@ const initialState: TimelineState = {
   bulkEditMode: false,
 };
 
-// Helper function to parse HH:MM time string to total minutes
-const parseTime = (timeStr: string): number => {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  if (isNaN(hours) || isNaN(minutes)) {
-      console.error(`Invalid time format for parsing: ${timeStr}`);
-      return 0; // Return 0 or handle error appropriately
-  }
-  return hours * 60 + minutes;
-};
-
-// Helper function to parse duration string (e.g., "60", "90m", "1h 30m") to minutes
-const parseDuration = (durationStr: string): number => {
-  if (!durationStr) return 0;
-
-  // Try parsing as a plain number first (assumed minutes)
-  const durationNum = parseInt(durationStr, 10);
-  if (!isNaN(durationNum) && durationStr.match(/^\d+$/)) {
-      return durationNum;
-  }
-    
-  let totalMinutes = 0;
-  const hourMatch = durationStr.match(/(\d+(\.\d+)?)\s*h/); // Allow float for hours
-  const minMatch = durationStr.match(/(\d+)\s*m/);
-
-  if (hourMatch) {
-      totalMinutes += parseFloat(hourMatch[1]) * 60;
-  }
-  if (minMatch) {
-      totalMinutes += parseInt(minMatch[1], 10);
-  }
-    
-  // Fallback if no units were found but it could be parsed as a number earlier
-  if (totalMinutes === 0 && !isNaN(durationNum)) {
-     return durationNum;
-  }
-
-  if (totalMinutes === 0 && durationStr) {
-    console.warn(`Could not parse duration: ${durationStr}. Assuming 0 minutes.`);
-  }
-
-  // Ensure we return an integer number of minutes
-  return Math.round(totalMinutes);
-};
-
-
-// Helper function to format total minutes to HH:MM string
-const formatTime = (totalMinutes: number): string => {
-  totalMinutes = Math.round(totalMinutes) % (24 * 60); // Ensure integer and handle day wrap around
-  if (totalMinutes < 0) {
-    totalMinutes += 24 * 60; // Handle negative wrap around
-  }
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-};
-
 const timelineSlice = createSlice({
   name: 'timeline',
   initialState,
   reducers: {
-    resetTimeline: (state: TimelineState) => initialState,
-    setItems(state: TimelineState, action: PayloadAction<TimelineItem[]>) {
+    resetTimeline: () => initialState,
+    setItems(state, action: PayloadAction<TimelineItem[]>) {
       state.past.push([...state.items]);
       state.items = action.payload;
       state.future = [];
       state.canUndo = true;
       state.canRedo = false;
     },
-    addItem(state: TimelineState, action: PayloadAction<TimelineItem>) {
+    addItem(state, action: PayloadAction<TimelineItem>) {
       state.past.push([...state.items]);
       state.items.push(action.payload);
       state.future = [];
       state.canUndo = true;
       state.canRedo = false;
     },
-    updateItem(state: TimelineState, action: PayloadAction<{ id: string; updates: Partial<TimelineItem> }>) {
+    updateItem(state, action: PayloadAction<{ id: string; updates: Partial<TimelineItem> }>) {
       state.past.push([...state.items]);
-      const index = state.items.findIndex((item: TimelineItem) => item.id === action.payload.id);
+      const index = state.items.findIndex(item => item.id === action.payload.id);
       if (index !== -1) {
         state.items[index] = { ...state.items[index], ...action.payload.updates };
       }
@@ -135,14 +79,14 @@ const timelineSlice = createSlice({
       state.canUndo = true;
       state.canRedo = false;
     },
-    deleteItem(state: TimelineState, action: PayloadAction<string>) {
+    deleteItem(state, action: PayloadAction<string>) {
       state.past.push([...state.items]);
-      state.items = state.items.filter((item: TimelineItem) => item.id !== action.payload);
+      state.items = state.items.filter(item => item.id !== action.payload);
       state.future = [];
       state.canUndo = true;
       state.canRedo = false;
     },
-    moveItem(state: TimelineState, action: PayloadAction<{ dragIndex: number; hoverIndex: number }>) {
+    moveItem(state, action: PayloadAction<{ dragIndex: number; hoverIndex: number }>) {
       state.past.push([...state.items]);
       const { dragIndex, hoverIndex } = action.payload;
       const dragItem = state.items[dragIndex];
@@ -152,14 +96,14 @@ const timelineSlice = createSlice({
       state.canUndo = true;
       state.canRedo = false;
     },
-    sortItems(state: TimelineState) {
+    sortItems(state) {
       state.past.push([...state.items]);
-      state.items.sort((a: TimelineItem, b: TimelineItem) => a.startTime.localeCompare(b.startTime));
+      state.items.sort((a, b) => a.startTime.localeCompare(b.startTime));
       state.future = [];
       state.canUndo = true;
       state.canRedo = false;
     },
-    updateWeddingInfo(state: TimelineState, action: PayloadAction<Partial<WeddingInfo>>) {
+    updateWeddingInfo(state, action: PayloadAction<Partial<WeddingInfo>>) {
       if (action.payload.date) {
         const date = new Date(action.payload.date);
         if (!isNaN(date.getTime())) {
@@ -173,7 +117,7 @@ const timelineSlice = createSlice({
         state.weddingInfo = { ...state.weddingInfo, ...action.payload };
       }
     },
-    undo(state: TimelineState) {
+    undo(state) {
       if (state.past.length > 0) {
         const previous = state.past.pop()!;
         state.future.push([...state.items]);
@@ -182,7 +126,7 @@ const timelineSlice = createSlice({
         state.canRedo = true;
       }
     },
-    redo(state: TimelineState) {
+    redo(state) {
       if (state.future.length > 0) {
         const next = state.future.pop()!;
         state.past.push([...state.items]);
@@ -191,13 +135,13 @@ const timelineSlice = createSlice({
         state.canRedo = state.future.length > 0;
       }
     },
-    setBulkEditMode(state: TimelineState, action: PayloadAction<boolean>) {
+    setBulkEditMode(state, action: PayloadAction<boolean>) {
       state.bulkEditMode = action.payload;
       if (!action.payload) {
         state.selectedItems = [];
       }
     },
-    toggleItemSelection(state: TimelineState, action: PayloadAction<string>) {
+    toggleItemSelection(state, action: PayloadAction<string>) {
       const index = state.selectedItems.indexOf(action.payload);
       if (index === -1) {
         state.selectedItems.push(action.payload);
@@ -205,63 +149,51 @@ const timelineSlice = createSlice({
         state.selectedItems.splice(index, 1);
       }
     },
-    selectAllInCategory(state: TimelineState, action: PayloadAction<string>) {
+    selectAllInCategory(state, action: PayloadAction<string>) {
       const categoryItems = state.items
-        .filter((item: TimelineItem) => item.category === action.payload)
-        .map((item: TimelineItem) => item.id);
+        .filter(item => item.category === action.payload)
+        .map(item => item.id);
 
       const newSet = new Set([...state.selectedItems]);
       categoryItems.forEach(id => newSet.add(id));
       state.selectedItems = Array.from(newSet);
     },
-    clearSelection(state: TimelineState) {
+    clearSelection(state) {
       state.selectedItems = [];
     },
-    adjustSelectedTimes(state: TimelineState, action: PayloadAction<{ minutes: number }>) {
+    adjustSelectedTimes(state, action: PayloadAction<{ minutes: number }>) {
       if (state.selectedItems.length === 0) return;
 
-      console.log('[adjustSelectedTimes] Payload:', action.payload);
-      console.log('[adjustSelectedTimes] State before update:', JSON.parse(JSON.stringify(state.items))); // Deep copy for logging
-      console.log('[adjustSelectedTimes] Selected items:', state.selectedItems);
-
       state.past.push([...state.items]);
-      state.items = state.items.map((item: TimelineItem) => {
+      state.items = state.items.map(item => {
         if (state.selectedItems.includes(item.id)) {
-          // Parse start time and duration
-          const startMinutes = parseTime(item.startTime);
-          const durationMinutes = parseDuration(item.duration); // Use helper
+          const [hours, minutes] = item.startTime.split(':').map(Number);
+          let totalMinutes = hours * 60 + minutes + action.payload.minutes;
 
-          // Calculate new start time in minutes
-          let newStartMinutes = startMinutes + action.payload.minutes;
+          // Handle day wrapping
+          while (totalMinutes < 0) totalMinutes += 24 * 60;
+          totalMinutes = totalMinutes % (24 * 60);
 
-          // Calculate new end time in minutes
-          const newEndMinutes = newStartMinutes + durationMinutes;
-
-          // Format back to HH:MM strings
-          const newStartTimeStr = formatTime(newStartMinutes);
-          const newEndTimeStr = formatTime(newEndMinutes);
+          const newHours = Math.floor(totalMinutes / 60);
+          const newMinutes = totalMinutes % 60;
 
           return {
             ...item,
-            startTime: newStartTimeStr,
-            endTime: newEndTimeStr, // Update endTime
-            // Duration remains unchanged conceptually, but endTime reflects the shift
+            startTime: `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`
           };
         }
         return item;
       });
 
-      console.log('[adjustSelectedTimes] State after update:', JSON.parse(JSON.stringify(state.items))); // Deep copy for logging
-
       state.future = [];
       state.canUndo = true;
       state.canRedo = false;
     },
-    deleteSelectedItems(state: TimelineState) {
+    deleteSelectedItems(state) {
       if (state.selectedItems.length === 0) return;
 
       state.past.push([...state.items]);
-      state.items = state.items.filter((item: TimelineItem) => !state.selectedItems.includes(item.id));
+      state.items = state.items.filter(item => !state.selectedItems.includes(item.id));
       state.selectedItems = [];
       state.future = [];
       state.canUndo = true;
@@ -289,6 +221,8 @@ export const {
   deleteSelectedItems,
 } = timelineSlice.actions;
 
-export type RootState = ReturnType<typeof timelineSlice.reducer>;
+export type RootState = {
+  timeline: TimelineState;
+};
 
 export default timelineSlice.reducer;

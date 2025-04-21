@@ -231,6 +231,7 @@ interface TimelineEditorProps {
   setNewItemId?: (id: string | null) => void;
   isTrial?: boolean;
   onExport?: () => void; // Function to trigger external export dialog in trial mode
+  onSync?: () => void; // Function to sync changes with the server for logged-in users
 }
 
 interface TimelineItem {
@@ -627,6 +628,7 @@ export function TimelineEditor({
   onDeleteItem,
   isTrial = false,
   onExport,
+  onSync,
 }: TimelineEditorProps) {
   // Show specific buttons based on trial mode
   const shouldShowTemplatesButton = !isTrial;
@@ -4754,6 +4756,11 @@ export function TimelineEditor({
       description: `${selectedItemsCount} item${selectedItemsCount !== 1 ? 's' : ''} moved ${absoluteMinutes} minute${absoluteMinutes !== 1 ? 's' : ''} ${direction}`,
       variant: "default",
     });
+
+    // If a sync function is provided (for logged-in users), call it to save changes to the server
+    if (!isTrial && !isTemplate && onSync) {
+      onSync();
+    }
   };
   
   // Function to handle selecting all items in a category

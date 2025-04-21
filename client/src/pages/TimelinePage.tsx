@@ -9,7 +9,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootState, resetTimeline, addItem, updateWeddingInfo, setItems as setReduxItems, deleteItem } from "@/store/timelineSlice";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,7 +86,7 @@ interface Timeline {
     }>;
   }>;
   images?: TimelineImage[];
-  customFieldValues?: Record<string, any>;
+  customFieldValues?: any;
   vendors?: Array<{
     id: number;
     name: string;
@@ -112,8 +112,6 @@ export default function TimelinePage() {
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [showVendors, setShowVendors] = useState(false);
-  const [needsInit, setNeedsInit] = useState(true);
-  const currentIdRef = useRef<string | null>(null);
   
   const { 
     showSaveDialog, 
@@ -153,19 +151,10 @@ export default function TimelinePage() {
     }
   }, [id, dispatch]);
 
-  useEffect(() => {
-    if (id !== currentIdRef.current) {
-        console.log(`ID changed from ${currentIdRef.current} to ${id}. Setting needsInit=true.`);
-        setNeedsInit(true);
-        currentIdRef.current = id;
-    }
-  }, [id]);
-
   const { data: existingTimeline, isLoading, error: timelineError } = useQuery<Timeline>({
     queryKey: [`/api/timelines/${id}`],
     enabled: !!id,
     refetchOnWindowFocus: false,
-    staleTime: 60 * 1000,
     queryFn: async () => {
       console.log(`Fetching timeline with ID: ${id}`);
       try {
@@ -196,8 +185,10 @@ export default function TimelinePage() {
   }, [timelineError, toast]);
 
   useEffect(() => {
-    if (existingTimeline && needsInit && id && Number(id) === existingTimeline.id) {
-      console.log(`Initializing Redux for ID: ${existingTimeline.id} because needsInit is true.`);
+    if (!existingTimeline) return;
+    
+    if (existingTimeline && id) {
+      console.log('Loading timeline:', existingTimeline);
       dispatch(resetTimeline());
       dispatch(updateWeddingInfo({
         names: existingTimeline.title,
@@ -226,9 +217,9 @@ export default function TimelinePage() {
       
       existingTimeline.events
         .sort(sortByOrder)
-        .forEach((event: Timeline['events'][number]) => {
+        .forEach(event => {
           const categoryName = event.categoryId
-            ? existingTimeline.categories.find((c: Timeline['categories'][number]) => c.id === event.categoryId)?.name
+            ? existingTimeline.categories.find(c => c.id === event.categoryId)?.name
             : undefined;
           dispatch(addItem({
             id: event.id.toString(),
@@ -240,7 +231,7 @@ export default function TimelinePage() {
             location: event.location || '',
             type: event.type,
             category: categoryName,
-            vendors: event.vendors?.map((v: NonNullable<Timeline['events'][number]['vendors']>[number]) => ({
+            vendors: event.vendors?.map(v => ({
               id: v.id.toString(),
               name: v.name,
               type: v.type,
@@ -248,9 +239,8 @@ export default function TimelinePage() {
             }))
           }));
         });
-      setNeedsInit(false);
     }
-  }, [existingTimeline, needsInit, id, dispatch]);
+  }, [existingTimeline, id, dispatch]);
 
   const saveMutation = useMutation({
     mutationFn: async (data?: {
@@ -290,13 +280,13 @@ export default function TimelinePage() {
         categoriesEnabled: showCategories,
         vendorsEnabled: showVendors,
         customFieldValues: weddingInfo.customFieldValues || {},
-        categories: showCategories ? categories.map((category: Category, index: number) => ({
+        categories: showCategories ? categories.map((category, index) => ({
           name: category.name,
           description: category.description,
           order: category.order || index,
           ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
         })) : [],
-        events: items.map((item: RootState['timeline']['items'][number], index: number) => ({
+        events: items.map((item, index) => ({
           startTime: item.startTime,
           endTime: item.endTime,
           duration: item.duration,
@@ -341,7 +331,7 @@ export default function TimelinePage() {
         navigate('/');
       }
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       console.error('Failed to save timeline:', error);
       toast({
         title: "Error",
@@ -365,7 +355,7 @@ export default function TimelinePage() {
         body: JSON.stringify({
           title: templateName,
           type: weddingInfo.type,
-          events: items.map((item: RootState['timeline']['items'][number]) => ({
+          events: items.map(item => ({
             startTime: item.startTime,
             endTime: item.endTime,
             duration: item.duration,
@@ -375,7 +365,7 @@ export default function TimelinePage() {
             type: item.type,
             category: item.category,
           })),
-          categories: categories.map((cat: Category, index: number) => ({
+          categories: categories.map((cat, index) => ({
             name: cat.name,
             description: cat.description || '',
             order: index,
@@ -399,7 +389,7 @@ export default function TimelinePage() {
         description: "Template saved successfully",
       });
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       console.error('Template creation error:', error);
       toast({
         title: "Error",
@@ -509,6 +499,37 @@ export default function TimelinePage() {
 
   const handleDeleteItem = (id: string) => {
     dispatch(deleteItem(id));
+  };
+
+  // Function to sync changes with the server
+  const syncChanges = () => {
+    saveMutation.mutate({
+      title: weddingInfo.names,
+      date: weddingInfo.date,
+      type: weddingInfo.type,
+      location: weddingInfo.location,
+      categoriesEnabled: showCategories,
+      vendorsEnabled: showVendors,
+      customFieldValues: weddingInfo.customFieldValues || {},
+      categories: showCategories ? categories.map((category, index) => ({
+        name: category.name,
+        description: category.description,
+        order: category.order || index,
+        ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
+      })) : [],
+      events: items.map((item, index) => ({
+        startTime: item.startTime,
+        endTime: item.endTime,
+        duration: item.duration,
+        title: item.title,
+        description: item.description || '',
+        location: item.location || '',
+        type: item.type,
+        category: item.category,
+        categoryId: item.categoryId,
+        order: index,
+      })),
+    });
   };
 
   if (isLoading) {
@@ -670,6 +691,7 @@ export default function TimelinePage() {
                 setNewItemId={() => {}}
                 showVendors={showVendors}
                 setShowVendors={setShowVendors}
+                onSync={syncChanges}
               />
 
               {id && (
