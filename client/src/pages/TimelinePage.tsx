@@ -9,7 +9,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootState, resetTimeline, addItem, updateWeddingInfo, setItems as setReduxItems, deleteItem } from "@/store/timelineSlice";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,6 +113,7 @@ export default function TimelinePage() {
   const [templateName, setTemplateName] = useState('');
   const [showVendors, setShowVendors] = useState(false);
   const [isBulkEditing, setIsBulkEditing] = useState(false);
+  const justExitedBulkEditRef = useRef(false);
   
   const { 
     showSaveDialog, 
@@ -154,6 +155,11 @@ export default function TimelinePage() {
 
   useEffect(() => {
     console.log(`[DEBUG] isBulkEditing state changed to: ${isBulkEditing}`);
+    
+    // If we're entering bulk edit mode, reset the flag
+    if (isBulkEditing) {
+      justExitedBulkEditRef.current = false;
+    }
   }, [isBulkEditing]);
 
   const { data: existingTimeline, isLoading, error: timelineError } = useQuery<Timeline>({
@@ -194,7 +200,13 @@ export default function TimelinePage() {
   useEffect(() => {
     if (!existingTimeline) return;
     
-    console.log('[DEBUG] existingTimeline useEffect triggered - isBulkEditing:', isBulkEditing);
+    console.log('[DEBUG] existingTimeline useEffect triggered - isBulkEditing:', isBulkEditing, 'justExitedBulkEditRef:', justExitedBulkEditRef.current);
+    
+    if (justExitedBulkEditRef.current) {
+      console.log('[DEBUG] Skipping timeline reload because we just exited bulk edit mode');
+      justExitedBulkEditRef.current = false;
+      return;
+    }
     
     if (existingTimeline && id) {
       console.log('Loading timeline:', existingTimeline);
@@ -532,6 +544,12 @@ export default function TimelinePage() {
   const handleEnterBulkEditMode = (isEntering: boolean) => {
     console.log(`[DEBUG] handleEnterBulkEditMode called with value: ${isEntering}`);
     console.log(`[DEBUG] Current bulk edit state before change: ${isBulkEditing}`);
+    
+    if (isBulkEditing && !isEntering) {
+      console.log('[DEBUG] Exiting bulk edit mode - setting justExitedBulkEditRef to true');
+      justExitedBulkEditRef.current = true;
+    }
+    
     setIsBulkEditing(isEntering);
   };
 
