@@ -164,9 +164,19 @@ const timelineSlice = createSlice({
     adjustSelectedTimes(state, action: PayloadAction<{ minutes: number }>) {
       if (state.selectedItems.length === 0) return;
 
+      console.log("REDUX: Adjusting selected times", {
+        minutes: action.payload.minutes,
+        selectedItems: state.selectedItems,
+        itemsCount: state.items.length,
+      });
+
       state.past.push([...state.items]);
       state.items = state.items.map(item => {
         if (state.selectedItems.includes(item.id)) {
+          console.log(`REDUX: Adjusting item ${item.id}`, { 
+            before: { startTime: item.startTime, endTime: item.endTime },
+          });
+          
           // Update start time
           const [startHours, startMinutes] = item.startTime.split(':').map(Number);
           let startTotalMinutes = startHours * 60 + startMinutes + action.payload.minutes;
@@ -194,15 +204,22 @@ const timelineSlice = createSlice({
             newEndTime = `${String(newEndHours).padStart(2, '0')}:${String(newEndMinutes).padStart(2, '0')}`;
           }
 
-          return {
+          const updatedItem = {
             ...item,
             startTime: newStartTime,
             endTime: newEndTime
           };
+          
+          console.log(`REDUX: Item ${item.id} adjusted`, { 
+            after: { startTime: updatedItem.startTime, endTime: updatedItem.endTime },
+          });
+          
+          return updatedItem;
         }
         return item;
       });
 
+      console.log("REDUX: State updated successfully");
       state.future = [];
       state.canUndo = true;
       state.canRedo = false;

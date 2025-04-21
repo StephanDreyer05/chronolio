@@ -454,34 +454,73 @@ const CategoryItem = ({
   );
 };
 
-// Helper component to ensure time adjustment clicks don't cause form submissions
-const TimeAdjustmentButton = ({ minutes, isEarlier, onTimeShift }: { 
-  minutes: number, 
-  isEarlier: boolean, 
+// Simplified direct time adjustment for bulk edit
+const TimeAdjustmentGrid = ({ 
+  timeAdjustments, 
+  onTimeShift 
+}: { 
+  timeAdjustments: number[],
   onTimeShift: (minutes: { minutes: number }) => void 
 }) => {
-  const handleClick = (e: React.MouseEvent) => {
-    // Prevent all possible default behaviors
+  
+  const handleEarlierClick = (minutes: number) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // Call the time shift with the appropriate sign
-    const adjustedMinutes = isEarlier ? -minutes : minutes;
-    onTimeShift({ minutes: adjustedMinutes });
-    
+    console.log(`Earlier button clicked: ${minutes} minutes`);
+    onTimeShift({ minutes: -minutes });
+    return false;
+  };
+  
+  const handleLaterClick = (minutes: number) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log(`Later button clicked: ${minutes} minutes`);
+    onTimeShift({ minutes });
     return false;
   };
   
   return (
-    <div 
-      onClick={handleClick} 
-      className="relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground"
-    >
-      {minutes} minutes {isEarlier ? 'earlier' : 'later'}
+    <div className="grid grid-cols-2 gap-4">
+      <div className="border rounded-md p-3 bg-white dark:bg-zinc-900">
+        <h3 className="font-medium mb-2 text-sm flex items-center">
+          <ChevronLeft className="h-4 w-4 mr-1 text-purple-600" /> Earlier
+        </h3>
+        <div className="grid grid-cols-2 gap-2">
+          {timeAdjustments.map(minutes => (
+            <button
+              key={`earlier-${minutes}`}
+              type="button"
+              className="px-2 py-1.5 bg-gray-50 hover:bg-gray-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded text-sm w-full text-center"
+              onClick={handleEarlierClick(minutes)}
+            >
+              {minutes} min
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      <div className="border rounded-md p-3 bg-white dark:bg-zinc-900">
+        <h3 className="font-medium mb-2 text-sm flex items-center justify-between">
+          Later <ChevronRight className="h-4 w-4 ml-1 text-purple-600" />
+        </h3>
+        <div className="grid grid-cols-2 gap-2">
+          {timeAdjustments.map(minutes => (
+            <button
+              key={`later-${minutes}`}
+              type="button"
+              className="px-2 py-1.5 bg-gray-50 hover:bg-gray-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded text-sm w-full text-center"
+              onClick={handleLaterClick(minutes)}
+            >
+              {minutes} min
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
 
+// Updated BulkEditControls with simplified implementation
 const BulkEditControls = ({
   onTimeShift,
   timeAdjustments,
@@ -498,6 +537,12 @@ const BulkEditControls = ({
   const timelineItems = useSelector(
     (state: RootStateType) => state.timeline.items,
   );
+
+  console.log("BulkEditControls rendering with", { 
+    selectedCount, 
+    selectedItems, 
+    timelineItemsCount: timelineItems.length 
+  });
 
   const selectedCategories = categories.reduce(
     (acc: { [key: string]: boolean }, category) => {
@@ -524,57 +569,14 @@ const BulkEditControls = ({
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {/* Time Adjustments Section */}
         <div>
-          <h4 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Time Adjustments</h4>
-          <div className="grid grid-cols-2 gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full" type="button">
-                  <ChevronLeft className="h-4 w-4 mr-1 text-purple-600" />
-                  Earlier
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent onClick={e => e.preventDefault()}>
-                {timeAdjustments.map((minutes) => (
-                  <DropdownMenuItem
-                    key={`earlier-${minutes}`}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    <TimeAdjustmentButton 
-                      minutes={minutes} 
-                      isEarlier={true} 
-                      onTimeShift={onTimeShift} 
-                    />
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full" type="button">
-                  Later
-                  <ChevronRight className="h-4 w-4 ml-1 text-purple-600" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent onClick={e => e.preventDefault()}>
-                {timeAdjustments.map((minutes) => (
-                  <DropdownMenuItem
-                    key={`later-${minutes}`}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    <TimeAdjustmentButton 
-                      minutes={minutes} 
-                      isEarlier={false} 
-                      onTimeShift={onTimeShift} 
-                    />
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <h4 className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Time Adjustments</h4>
+          <TimeAdjustmentGrid 
+            timeAdjustments={timeAdjustments} 
+            onTimeShift={onTimeShift} 
+          />
         </div>
 
         {/* Select by Category Section */}
@@ -588,7 +590,11 @@ const BulkEditControls = ({
                   selectedCategories[category.name] ? "default" : "outline"
                 }
                 size="sm"
-                onClick={() => onSelectAllInCategory(category.name)}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onSelectAllInCategory(category.name);
+                }}
                 className={`justify-start text-sm h-8 ${
                   selectedCategories[category.name] ? "bg-purple-600 hover:bg-purple-700 text-white" : ""
                 }`}
@@ -604,7 +610,11 @@ const BulkEditControls = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={onClearSelection}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              onClearSelection();
+            }}
             className="h-9"
           >
             Deselect All
@@ -612,7 +622,11 @@ const BulkEditControls = ({
           <Button
             variant="destructive"
             size="sm"
-            onClick={() => setShowDeleteDialog(true)}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              setShowDeleteDialog(true);
+            }}
             className="h-9"
           >
             Delete Selected
@@ -630,11 +644,15 @@ const BulkEditControls = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-white hover:bg-gray-100 dark:bg-zinc-900 dark:hover:bg-zinc-800">
+            <AlertDialogCancel 
+              className="bg-white hover:bg-gray-100 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              onClick={(e) => { e.preventDefault(); }}
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault();
                 onDeleteSelected();
                 setShowDeleteDialog(false);
               }}
@@ -4781,21 +4799,35 @@ export function TimelineEditor({
   
   // Function to handle time shift for bulk edit
   const handleTimeShift = async (minutes: { minutes: number }) => {
-    const selectedItemsCount = selectedItems.length;
-    dispatch(adjustSelectedTimes(minutes));
+    console.log('handleTimeShift start', minutes);
     
-    // Show toast notification
-    const direction = minutes.minutes > 0 ? "later" : "earlier";
-    const absoluteMinutes = Math.abs(minutes.minutes);
-    toast({
-      title: `Time Adjusted`,
-      description: `${selectedItemsCount} item${selectedItemsCount !== 1 ? 's' : ''} moved ${absoluteMinutes} minute${absoluteMinutes !== 1 ? 's' : ''} ${direction}`,
-      variant: "default",
-    });
-
-    // Note: We're intentionally NOT saving to the database here to avoid navigation
-    // Changes exist in Redux state but won't persist if page is reloaded
-    console.log('Timeline items adjusted in local state');
+    const selectedItemsCount = selectedItems.length;
+    console.log('Selected items count:', selectedItemsCount);
+    console.log('Selected items IDs:', selectedItems);
+    
+    try {
+      console.log('Dispatching adjustSelectedTimes');
+      dispatch(adjustSelectedTimes(minutes));
+      console.log('Redux state should be updated now');
+      
+      // We can't use useSelector here since this is not a component function
+      // Instead, log the timeline items we have access to
+      console.log('Selected items before adjustment:', selectedItems);
+      console.log('All timeline items from props:', timelineItems);
+      
+      // Show toast notification
+      const direction = minutes.minutes > 0 ? "later" : "earlier";
+      const absoluteMinutes = Math.abs(minutes.minutes);
+      toast({
+        title: `Time Adjusted`,
+        description: `${selectedItemsCount} item${selectedItemsCount !== 1 ? 's' : ''} moved ${absoluteMinutes} minute${absoluteMinutes !== 1 ? 's' : ''} ${direction}`,
+        variant: "default",
+      });
+    
+      console.log('handleTimeShift complete');
+    } catch (error) {
+      console.error('Error in handleTimeShift:', error);
+    }
   };
   
   // Function to handle selecting all items in a category

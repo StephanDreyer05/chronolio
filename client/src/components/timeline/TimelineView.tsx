@@ -92,6 +92,14 @@ export function TimelineView({
   const dispatch = useDispatch();
   const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
 
+  // Prevent default behavior for all events to avoid page reloads
+  const preventDefaultForEventHandling = (e: React.MouseEvent | React.KeyboardEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
   // Debug log
   useEffect(() => {
     console.log("TimelineView - Timeline ID:", timelineId);
