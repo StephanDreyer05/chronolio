@@ -4764,14 +4764,13 @@ export function TimelineEditor({
     setShowCategories(checked);
   };
   
-  // Function to handle time shift for bulk edit
+  // Update the time shift handler
   const handleTimeShift = (minutes: { minutes: number }) => {
     const selectedItemsCount = selectedItems.length;
     
-    if (timelineId) {
-      // Ensure refetch is disabled when making bulk changes
-      disableRefetchFor(timelineId, 5);
-    }
+    // Ensure we're in bulk edit mode when shifting times
+    queryClient.setQueryData(['bulkEditMode'], true);
+    console.log('[DEBUG] Time shift operation - preventing timeline data processing');
     
     dispatch(adjustSelectedTimes(minutes));
     
@@ -4783,6 +4782,14 @@ export function TimelineEditor({
       description: `${selectedItemsCount} item${selectedItemsCount !== 1 ? 's' : ''} moved ${absoluteMinutes} minute${absoluteMinutes !== 1 ? 's' : ''} ${direction}`,
       variant: "default",
     });
+    
+    // Keep the bulk edit mode active for a short while to prevent immediate refetching
+    setTimeout(() => {
+      if (bulkEditMode) {
+        // Only reset if we're still in bulk edit mode (user hasn't clicked exit)
+        queryClient.setQueryData(['bulkEditMode'], true);
+      }
+    }, 1000);
   };
   
   // Function to handle selecting all items in a category
@@ -5349,9 +5356,17 @@ export function TimelineEditor({
   const handleToggleBulkEditMode = () => {
     const newBulkEditMode = !bulkEditMode;
     
-    if (newBulkEditMode && timelineId) {
-      // When entering bulk edit mode, disable refetching
-      disableRefetchFor(timelineId, 5);
+    // Store bulk edit mode in query cache to inform other components
+    queryClient.setQueryData(['bulkEditMode'], newBulkEditMode);
+    
+    if (newBulkEditMode) {
+      console.log('[DEBUG] Entering bulk edit mode - preventing timeline data processing');
+    } else {
+      console.log('[DEBUG] Exiting bulk edit mode - timeline data processing resumed');
+      // Allow a small delay before allowing timeline processing again
+      setTimeout(() => {
+        queryClient.setQueryData(['bulkEditMode'], false);
+      }, 1000);
     }
     
     dispatch(setBulkEditMode(newBulkEditMode));

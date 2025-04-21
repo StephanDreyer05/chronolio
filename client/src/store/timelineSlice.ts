@@ -151,6 +151,9 @@ const timelineSlice = createSlice({
       // If we're entering bulk edit mode, log it
       if (action.payload && !wasInBulkEditMode) {
         console.log("[DEBUG] Entering bulk edit mode");
+        
+        // When entering bulk edit mode, we want to freeze timeline state temporarily
+        // This is now handled by query client flag
       }
     },
     toggleItemSelection(state, action: PayloadAction<string>) {

@@ -178,17 +178,18 @@ export default function TimelinePage() {
     queryKey: [`/api/timelines/${id}`],
     enabled: !!id,
     refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    retry: false,
     queryFn: async () => {
       console.log(`Fetching timeline with ID: ${id}`);
       
-      // Check if we should disable refetch for bulk editing
-      if (id && shouldDisableRefetch(parseInt(id, 10))) {
-        console.log(`[DEBUG] Refetch disabled for timeline ${id}`);
+      // Check if we should disable refetch due to bulk edit mode
+      const bulkEditMode = queryClient.getQueryData(['bulkEditMode']) as boolean;
+      if (bulkEditMode) {
+        console.log(`[DEBUG] Aborting timeline fetch because bulk edit mode is active`);
         // Return the existing data from the query client to prevent refetching
         const existing = queryClient.getQueryData([`/api/timelines/${id}`]) as Timeline;
-        if (existing) return existing;
+        if (existing) {
+          return existing;
+        }
       }
       
       try {
@@ -220,6 +221,15 @@ export default function TimelinePage() {
 
   useEffect(() => {
     if (!existingTimeline) return;
+    
+    // Get bulk edit mode from Redux state
+    const bulkEditMode = queryClient.getQueryData(['bulkEditMode']) as boolean;
+    
+    // Skip timeline processing if in bulk edit mode
+    if (bulkEditMode) {
+      console.log('[DEBUG] Skipping timeline data processing because bulk edit mode is active');
+      return;
+    }
     
     if (existingTimeline && id) {
       console.log('Loading timeline:', existingTimeline);
@@ -372,10 +382,20 @@ export default function TimelinePage() {
         title: "Success",
         description: "Timeline saved successfully",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/timelines'] });
-      if (id) {
-        queryClient.invalidateQueries({ queryKey: [`/api/timelines/${id}`] });
+      
+      // Check if we're in bulk edit mode
+      const bulkEditMode = queryClient.getQueryData(['bulkEditMode']) as boolean;
+      
+      if (!bulkEditMode) {
+        // Only invalidate queries if not in bulk edit mode
+        queryClient.invalidateQueries({ queryKey: ['/api/timelines'] });
+        if (id) {
+          queryClient.invalidateQueries({ queryKey: [`/api/timelines/${id}`] });
+        }
+      } else {
+        console.log('[DEBUG] Skipping query invalidation because bulk edit mode is active');
       }
+      
       if (!showSaveDialog) {
         navigate('/');
       }
@@ -449,6 +469,9 @@ export default function TimelinePage() {
   });
 
   const handleSaveAndNavigate = async () => {
+    // Reset bulk edit mode when manually saving
+    queryClient.setQueryData(['bulkEditMode'], false);
+    
     try {
       await saveMutation.mutateAsync({
         title: weddingInfo.names,
