@@ -4806,16 +4806,16 @@ export function TimelineEditor({
     console.log('Selected items IDs:', selectedItems);
     
     try {
+      // Step 1: Update Redux store with the changes
       console.log('Dispatching adjustSelectedTimes');
       dispatch(adjustSelectedTimes(minutes));
       console.log('Redux state should be updated now');
       
-      // We can't use useSelector here since this is not a component function
-      // Instead, log the timeline items we have access to
+      // Step 2: Log the changes for debugging
       console.log('Selected items before adjustment:', selectedItems);
       console.log('All timeline items from props:', timelineItems);
       
-      // Show toast notification
+      // Step 3: Show toast notification
       const direction = minutes.minutes > 0 ? "later" : "earlier";
       const absoluteMinutes = Math.abs(minutes.minutes);
       toast({
@@ -4823,10 +4823,29 @@ export function TimelineEditor({
         description: `${selectedItemsCount} item${selectedItemsCount !== 1 ? 's' : ''} moved ${absoluteMinutes} minute${absoluteMinutes !== 1 ? 's' : ''} ${direction}`,
         variant: "default",
       });
+      
+      // Step 4: Save changes to the server if there's a saveTimeline function
+      // This will persist changes and prevent them from being overwritten on reload
+      if (saveTimeline && timelineId) {
+        console.log('Saving timeline changes to server...');
+        await saveTimeline();
+        console.log('Timeline changes saved to server successfully');
+        
+        // Now we can reset the skipRefetch flag in TimelinePage by setting a value in session storage
+        // This is a simple way to communicate between components without prop drilling
+        sessionStorage.setItem('bulkEditComplete', 'true');
+      } else {
+        console.log('No saveTimeline function available, changes are only in memory');
+      }
     
       console.log('handleTimeShift complete');
     } catch (error) {
       console.error('Error in handleTimeShift:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save timeline changes",
+        variant: "destructive",
+      });
     }
   };
   

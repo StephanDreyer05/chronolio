@@ -104,7 +104,7 @@ export default function TimelinePage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { collapsed } = useSidebar();
-  const { items, weddingInfo } = useSelector((state: RootState) => state.timeline);
+  const { items, weddingInfo, bulkEditMode } = useSelector((state: RootState) => state.timeline);
   const [showCategories, setShowCategories] = useState(false);
   const [showEndTimes, setShowEndTimes] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -112,6 +112,8 @@ export default function TimelinePage() {
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [showVendors, setShowVendors] = useState(false);
+  
+  const [skipRefetch, setSkipRefetch] = useState(false);
   
   const { 
     showSaveDialog, 
@@ -125,6 +127,12 @@ export default function TimelinePage() {
   useEffect(() => {
     setHasUnsavedChanges(items.length > 0);
   }, [items, setHasUnsavedChanges]);
+
+  useEffect(() => {
+    if (bulkEditMode) {
+      setSkipRefetch(true);
+    }
+  }, [bulkEditMode]);
 
   useEffect(() => {
     if (!id) {
@@ -151,9 +159,18 @@ export default function TimelinePage() {
     }
   }, [id, dispatch]);
 
+  useEffect(() => {
+    const bulkEditComplete = sessionStorage.getItem('bulkEditComplete');
+    if (bulkEditComplete === 'true') {
+      console.log('Bulk edit completed and saved, resetting skipRefetch flag');
+      setSkipRefetch(false);
+      sessionStorage.removeItem('bulkEditComplete');
+    }
+  }, [items]);
+
   const { data: existingTimeline, isLoading, error: timelineError } = useQuery<Timeline>({
     queryKey: [`/api/timelines/${id}`],
-    enabled: !!id,
+    enabled: !!id && !skipRefetch,
     refetchOnWindowFocus: false,
     queryFn: async () => {
       console.log(`Fetching timeline with ID: ${id}`);
@@ -185,7 +202,7 @@ export default function TimelinePage() {
   }, [timelineError, toast]);
 
   useEffect(() => {
-    if (!existingTimeline) return;
+    if (!existingTimeline || skipRefetch) return;
     
     if (existingTimeline && id) {
       console.log('Loading timeline:', existingTimeline);
@@ -240,7 +257,7 @@ export default function TimelinePage() {
           }));
         });
     }
-  }, [existingTimeline, id, dispatch]);
+  }, [existingTimeline, id, dispatch, skipRefetch]);
 
   const saveMutation = useMutation({
     mutationFn: async (data?: {

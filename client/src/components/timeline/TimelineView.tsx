@@ -123,6 +123,15 @@ export function TimelineView({
     });
   }, [reduxItems]);
   
+  // Create a content hash from items to force re-render when data changes
+  const itemsHash = useMemo(() => {
+    // Create a simple hash based on startTime and endTime of the first few items
+    // This will force the component to re-render when these values change
+    return reduxItems.slice(0, 5).map(item => 
+      `${item.id}:${item.startTime}:${item.endTime}`
+    ).join('|');
+  }, [reduxItems]);
+  
   const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
 
   // Prevent default behavior for all events to avoid page reloads
@@ -194,7 +203,7 @@ export function TimelineView({
           const color = categoryObj?.color || '#6366f1'; // Default to indigo if no color is set
           
           return (
-            <div key={`${item.id}-${renderKey}`} className="relative group">
+            <div key={`${item.id}-${renderKey}-${itemsHash}`} className="relative group">
               <TimelineItem
                 id={item.id}
                 index={index}
@@ -248,12 +257,12 @@ export function TimelineView({
 
   // Render with the key to force re-render on Redux state changes
   return (
-    <div className="space-y-8" key={`timeline-view-${renderKey}`}>
+    <div className="space-y-8" key={`timeline-view-${renderKey}-${itemsHash}`}>
       {showCategories && showCategoriesOnItems && categories.length > 0 ? (
         categories.map((category) => {
           const isCollapsed = collapsedCategories.includes(category.id);
           return (
-            <div key={`${category.id}-${renderKey}`} className="bg-white dark:bg-zinc-900 rounded-lg border shadow-sm overflow-hidden">
+            <div key={`${category.id}-${renderKey}-${itemsHash}`} className="bg-white dark:bg-zinc-900 rounded-lg border shadow-sm overflow-hidden">
               <div 
                 className="flex items-center justify-between cursor-pointer bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 hover:from-purple-100 hover:to-indigo-100 dark:hover:from-purple-900/30 dark:hover:to-indigo-900/30 p-4 transition-colors"
                 onClick={() => toggleCategory(category.id)}
