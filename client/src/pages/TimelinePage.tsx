@@ -152,6 +152,10 @@ export default function TimelinePage() {
     }
   }, [id, dispatch]);
 
+  useEffect(() => {
+    console.log(`[DEBUG] isBulkEditing state changed to: ${isBulkEditing}`);
+  }, [isBulkEditing]);
+
   const { data: existingTimeline, isLoading, error: timelineError } = useQuery<Timeline>({
     queryKey: [`/api/timelines/${id}`],
     enabled: !!id && !isBulkEditing,
@@ -159,7 +163,7 @@ export default function TimelinePage() {
     refetchOnMount: false,
     staleTime: 60 * 1000,
     queryFn: async () => {
-      console.log(`Fetching timeline with ID: ${id}`);
+      console.log(`[DEBUG] Query executing - isBulkEditing: ${isBulkEditing}, id: ${id}`);
       try {
         const response = await fetchWithAuth(`/api/timelines/${id}`);
         if (!response.ok) {
@@ -189,6 +193,8 @@ export default function TimelinePage() {
 
   useEffect(() => {
     if (!existingTimeline) return;
+    
+    console.log('[DEBUG] existingTimeline useEffect triggered - isBulkEditing:', isBulkEditing);
     
     if (existingTimeline && id) {
       console.log('Loading timeline:', existingTimeline);
@@ -332,18 +338,20 @@ export default function TimelinePage() {
       };
     },
     onSuccess: (result) => {
+      console.log('[DEBUG] saveMutation.onSuccess - skipInvalidation:', result.skipInvalidation, 'shouldNavigate:', result.shouldNavigate);
       toast({
         title: "Success",
         description: "Timeline saved successfully",
       });
       
       if (!result.skipInvalidation) {
+        console.log('[DEBUG] Invalidating queries since skipInvalidation is false');
         queryClient.invalidateQueries({ queryKey: ['/api/timelines'] });
         if (id) {
           queryClient.invalidateQueries({ queryKey: [`/api/timelines/${id}`] });
         }
       } else {
-        setTimeout(() => setIsBulkEditing(false), 100);
+        console.log('[DEBUG] Skipping query invalidation');
       }
       
       if (result.shouldNavigate && !showSaveDialog) {
@@ -522,12 +530,15 @@ export default function TimelinePage() {
   };
 
   const handleEnterBulkEditMode = (isEntering: boolean) => {
-    console.log(`${isEntering ? 'Entering' : 'Exiting'} bulk edit mode`);
+    console.log(`[DEBUG] handleEnterBulkEditMode called with value: ${isEntering}`);
+    console.log(`[DEBUG] Current bulk edit state before change: ${isBulkEditing}`);
     setIsBulkEditing(isEntering);
   };
 
   const syncChanges = () => {
-    setIsBulkEditing(true);
+    // Don't modify isBulkEditing state here; the TimelineEditor component 
+    // should control this state based on user interactions
+    console.log('[DEBUG] syncChanges called - current isBulkEditing state:', isBulkEditing);
     
     saveMutation.mutate({
       title: weddingInfo.names,
