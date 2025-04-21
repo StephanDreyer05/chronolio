@@ -112,6 +112,7 @@ export default function TimelinePage() {
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [showVendors, setShowVendors] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   const { 
     showSaveDialog, 
@@ -151,6 +152,10 @@ export default function TimelinePage() {
     }
   }, [id, dispatch]);
 
+  useEffect(() => {
+    setIsInitialized(false);
+  }, [id]);
+
   const { data: existingTimeline, isLoading, error: timelineError } = useQuery<Timeline>({
     queryKey: [`/api/timelines/${id}`],
     enabled: !!id,
@@ -185,10 +190,8 @@ export default function TimelinePage() {
   }, [timelineError, toast]);
 
   useEffect(() => {
-    if (!existingTimeline) return;
-    
-    if (existingTimeline && id) {
-      console.log('Loading timeline:', existingTimeline);
+    if (existingTimeline && id && !isInitialized) {
+      console.log('Initializing timeline state from fetched data:', existingTimeline);
       dispatch(resetTimeline());
       dispatch(updateWeddingInfo({
         names: existingTimeline.title,
@@ -239,8 +242,9 @@ export default function TimelinePage() {
             }))
           }));
         });
+      setIsInitialized(true);
     }
-  }, [existingTimeline, id, dispatch]);
+  }, [existingTimeline, id, dispatch, isInitialized]);
 
   const saveMutation = useMutation({
     mutationFn: async (data?: {
