@@ -5359,10 +5359,19 @@ export function TimelineEditor({
     // Store bulk edit mode in query cache to inform other components
     queryClient.setQueryData(['bulkEditMode'], newBulkEditMode);
     
+    // Save the current categories setting to ensure it's preserved
     if (newBulkEditMode) {
       console.log('[DEBUG] Entering bulk edit mode - preventing timeline data processing');
+      // Store the current categories setting
+      queryClient.setQueryData(['preservedCategoriesState'], showCategories);
     } else {
       console.log('[DEBUG] Exiting bulk edit mode - timeline data processing resumed');
+      // Restore the categories setting if needed
+      const preservedCategoriesState = queryClient.getQueryData(['preservedCategoriesState']) as boolean;
+      if (typeof preservedCategoriesState === 'boolean') {
+        setShowCategories(preservedCategoriesState);
+      }
+      
       // Allow a small delay before allowing timeline processing again
       setTimeout(() => {
         queryClient.setQueryData(['bulkEditMode'], false);
@@ -5371,6 +5380,19 @@ export function TimelineEditor({
     
     dispatch(setBulkEditMode(newBulkEditMode));
   };
+
+  // Add useEffect to sync UI with the preserved categories state
+  useEffect(() => {
+    if (bulkEditMode) {
+      // Check if we have a preserved categories state
+      const preservedCategoriesState = queryClient.getQueryData(['preservedCategoriesState']) as boolean;
+      if (typeof preservedCategoriesState === 'boolean') {
+        // Ensure the UI reflects the preserved categories state
+        setShowCategories(preservedCategoriesState);
+        console.log(`[DEBUG] Using preserved categories state: ${preservedCategoriesState}`);
+      }
+    }
+  }, [bulkEditMode, queryClient]);
 
   return (
     <div className="space-y-6">

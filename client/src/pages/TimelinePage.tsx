@@ -330,12 +330,21 @@ export default function TimelinePage() {
       const endpoint = id ? `/api/timelines/${id}` : '/api/timelines';
       const method = id ? 'PUT' : 'POST';
 
+      // Check if we should use the preserved categories state
+      const isBulkEditMode = queryClient.getQueryData(['bulkEditMode']) as boolean;
+      const preservedCategoriesState = queryClient.getQueryData(['preservedCategoriesState']) as boolean | undefined;
+      const effectiveCategoriesEnabled = isBulkEditMode && typeof preservedCategoriesState === 'boolean' 
+        ? preservedCategoriesState 
+        : showCategories;
+
+      console.log(`[DEBUG] Saving timeline with categoriesEnabled=${effectiveCategoriesEnabled} (current=${showCategories}, preserved=${preservedCategoriesState}, bulkEdit=${isBulkEditMode})`);
+
       const payload = data || {
         title: weddingInfo.names,
         date: weddingInfo.date,
         type: weddingInfo.type,
         location: weddingInfo.location,
-        categoriesEnabled: showCategories,
+        categoriesEnabled: effectiveCategoriesEnabled,
         vendorsEnabled: showVendors,
         customFieldValues: weddingInfo.customFieldValues || {},
         categories: showCategories ? categories.map((category, index) => ({
@@ -345,14 +354,22 @@ export default function TimelinePage() {
           ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
         })) : [],
         events: items.map((item, index) => {
-          // Find the category ID if the item has a category
+          // Find the category ID if the item has a category, regardless of current showCategories setting
           let categoryId = undefined;
-          if (item.category && showCategories) {
+          
+          // First, check if the item has a direct categoryId reference (this takes precedence)
+          if (item.categoryId && !isNaN(parseInt(item.categoryId))) {
+            categoryId = parseInt(item.categoryId);
+            console.log(`Using direct categoryId ${categoryId} for item: ${item.title}`);
+          } 
+          // Otherwise, try to find by category name if the item has a category
+          else if (item.category) {
             const matchingCategory = categories.find(cat => cat.name === item.category);
             if (matchingCategory) {
               categoryId = matchingCategory.id && !isNaN(parseInt(matchingCategory.id)) 
                 ? parseInt(matchingCategory.id) 
                 : undefined;
+              console.log(`Resolved categoryId ${categoryId} from name: ${item.category} for item: ${item.title}`);
             }
           }
           
@@ -491,13 +508,19 @@ export default function TimelinePage() {
     // Reset bulk edit mode when manually saving
     queryClient.setQueryData(['bulkEditMode'], false);
     
+    // Get the preserved categories state if available
+    const preservedCategoriesState = queryClient.getQueryData(['preservedCategoriesState']) as boolean | undefined;
+    const effectiveCategoriesEnabled = typeof preservedCategoriesState === 'boolean' 
+      ? preservedCategoriesState 
+      : showCategories;
+      
     try {
       await saveMutation.mutateAsync({
         title: weddingInfo.names,
         date: weddingInfo.date,
         type: weddingInfo.type,
         location: weddingInfo.location,
-        categoriesEnabled: showCategories,
+        categoriesEnabled: effectiveCategoriesEnabled,
         vendorsEnabled: showVendors,
         customFieldValues: weddingInfo.customFieldValues || {},
         categories: showCategories ? categories.map((category, index) => ({
@@ -507,14 +530,22 @@ export default function TimelinePage() {
           ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
         })) : [],
         events: items.map((item, index) => {
-          // Find the category ID if the item has a category
+          // Find the category ID if the item has a category, regardless of current showCategories setting
           let categoryId = undefined;
-          if (item.category && showCategories) {
+          
+          // First, check if the item has a direct categoryId reference (this takes precedence)
+          if (item.categoryId && !isNaN(parseInt(item.categoryId))) {
+            categoryId = parseInt(item.categoryId);
+            console.log(`Using direct categoryId ${categoryId} for item: ${item.title}`);
+          } 
+          // Otherwise, try to find by category name if the item has a category
+          else if (item.category) {
             const matchingCategory = categories.find(cat => cat.name === item.category);
             if (matchingCategory) {
               categoryId = matchingCategory.id && !isNaN(parseInt(matchingCategory.id)) 
                 ? parseInt(matchingCategory.id) 
                 : undefined;
+              console.log(`Resolved categoryId ${categoryId} from name: ${item.category} for item: ${item.title}`);
             }
           }
           
@@ -708,14 +739,22 @@ export default function TimelinePage() {
                           ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
                         })) : [],
                         events: items.map((item, index) => {
-                          // Find the category ID if the item has a category
+                          // Find the category ID if the item has a category, regardless of current showCategories setting
                           let categoryId = undefined;
-                          if (item.category && showCategories) {
+                          
+                          // First, check if the item has a direct categoryId reference (this takes precedence)
+                          if (item.categoryId && !isNaN(parseInt(item.categoryId))) {
+                            categoryId = parseInt(item.categoryId);
+                            console.log(`Using direct categoryId ${categoryId} for item: ${item.title}`);
+                          } 
+                          // Otherwise, try to find by category name if the item has a category
+                          else if (item.category) {
                             const matchingCategory = categories.find(cat => cat.name === item.category);
                             if (matchingCategory) {
                               categoryId = matchingCategory.id && !isNaN(parseInt(matchingCategory.id)) 
                                 ? parseInt(matchingCategory.id) 
                                 : undefined;
+                              console.log(`Resolved categoryId ${categoryId} from name: ${item.category} for item: ${item.title}`);
                             }
                           }
                           
@@ -820,14 +859,22 @@ export default function TimelinePage() {
                       ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
                     })) : [],
                     events: items.map((item, index) => {
-                      // Find the category ID if the item has a category
+                      // Find the category ID if the item has a category, regardless of current showCategories setting
                       let categoryId = undefined;
-                      if (item.category && showCategories) {
+                      
+                      // First, check if the item has a direct categoryId reference (this takes precedence)
+                      if (item.categoryId && !isNaN(parseInt(item.categoryId))) {
+                        categoryId = parseInt(item.categoryId);
+                        console.log(`Using direct categoryId ${categoryId} for item: ${item.title}`);
+                      } 
+                      // Otherwise, try to find by category name if the item has a category
+                      else if (item.category) {
                         const matchingCategory = categories.find(cat => cat.name === item.category);
                         if (matchingCategory) {
                           categoryId = matchingCategory.id && !isNaN(parseInt(matchingCategory.id)) 
                             ? parseInt(matchingCategory.id) 
                             : undefined;
+                          console.log(`Resolved categoryId ${categoryId} from name: ${item.category} for item: ${item.title}`);
                         }
                       }
                       
