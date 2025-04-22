@@ -9,8 +9,8 @@ interface TimelineItem {
   description: string;
   location: string;
   type: string;
-  category?: string;
-  categoryId?: string;
+  category?: string;       // Category name (for display)
+  categoryId?: string;     // Category ID (for database relations)
   vendors?: any[];
 }
 
@@ -192,8 +192,9 @@ const timelineSlice = createSlice({
           const newHours = Math.floor(totalMinutes / 60);
           const newMinutes = totalMinutes % 60;
 
+          // Make sure to preserve the category and categoryId
           return {
-            ...item,
+            ...item, // Keep all original properties including category and categoryId
             startTime: `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`
           };
         }

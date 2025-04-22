@@ -265,6 +265,9 @@ export default function TimelinePage() {
           const categoryName = event.categoryId
             ? existingTimeline.categories.find(c => c.id === event.categoryId)?.name
             : undefined;
+            
+          console.log(`Loading event: ${event.title}, categoryId: ${event.categoryId}, categoryName: ${categoryName}`);
+          
           dispatch(addItem({
             id: event.id.toString(),
             startTime: event.startTime,
@@ -275,6 +278,7 @@ export default function TimelinePage() {
             location: event.location || '',
             type: event.type,
             category: categoryName,
+            categoryId: event.categoryId ? event.categoryId.toString() : undefined, // Explicitly store categoryId
             vendors: event.vendors?.map(v => ({
               id: v.id.toString(),
               name: v.name,
@@ -284,7 +288,7 @@ export default function TimelinePage() {
           }));
         });
     }
-  }, [existingTimeline, id, dispatch]);
+  }, [existingTimeline, id, dispatch, queryClient]);
 
   // Handle bulk edit mode changes
   const { bulkEditMode } = useSelector((state: RootState) => state.timeline);
@@ -340,18 +344,33 @@ export default function TimelinePage() {
           order: category.order || index,
           ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
         })) : [],
-        events: items.map((item, index) => ({
-          startTime: item.startTime,
-          endTime: item.endTime,
-          duration: item.duration,
-          title: item.title,
-          description: item.description || '',
-          location: item.location || '',
-          type: item.type,
-          category: item.category,
-          categoryId: item.categoryId,
-          order: index,
-        })),
+        events: items.map((item, index) => {
+          // Find the category ID if the item has a category
+          let categoryId = undefined;
+          if (item.category && showCategories) {
+            const matchingCategory = categories.find(cat => cat.name === item.category);
+            if (matchingCategory) {
+              categoryId = matchingCategory.id && !isNaN(parseInt(matchingCategory.id)) 
+                ? parseInt(matchingCategory.id) 
+                : undefined;
+            }
+          }
+          
+          console.log(`Saving item: ${item.title} with category: ${item.category}, categoryId: ${categoryId}`);
+          
+          return {
+            startTime: item.startTime,
+            endTime: item.endTime,
+            duration: item.duration,
+            title: item.title,
+            description: item.description || '',
+            location: item.location || '',
+            type: item.type,
+            category: item.category,
+            categoryId: categoryId, // Include the category ID explicitly
+            order: index,
+          };
+        }),
       };
 
       console.log(`Saving timeline ${id ? 'update' : 'creation'}:`, payload);
@@ -487,18 +506,33 @@ export default function TimelinePage() {
           order: category.order || index,
           ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
         })) : [],
-        events: items.map((item, index) => ({
-          startTime: item.startTime,
-          endTime: item.endTime,
-          duration: item.duration,
-          title: item.title,
-          description: item.description || '',
-          location: item.location || '',
-          type: item.type,
-          category: item.category,
-          categoryId: item.categoryId,
-          order: index,
-        })),
+        events: items.map((item, index) => {
+          // Find the category ID if the item has a category
+          let categoryId = undefined;
+          if (item.category && showCategories) {
+            const matchingCategory = categories.find(cat => cat.name === item.category);
+            if (matchingCategory) {
+              categoryId = matchingCategory.id && !isNaN(parseInt(matchingCategory.id)) 
+                ? parseInt(matchingCategory.id) 
+                : undefined;
+            }
+          }
+          
+          console.log(`Saving item: ${item.title} with category: ${item.category}, categoryId: ${categoryId}`);
+          
+          return {
+            startTime: item.startTime,
+            endTime: item.endTime,
+            duration: item.duration,
+            title: item.title,
+            description: item.description || '',
+            location: item.location || '',
+            type: item.type,
+            category: item.category,
+            categoryId: categoryId, // Include the category ID explicitly
+            order: index,
+          };
+        }),
       });
       setShowSaveDialog(false);
       if (navigationPath) {
@@ -673,18 +707,33 @@ export default function TimelinePage() {
                           order: category.order || index,
                           ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
                         })) : [],
-                        events: items.map((item, index) => ({
-                          startTime: item.startTime,
-                          endTime: item.endTime,
-                          duration: item.duration,
-                          title: item.title,
-                          description: item.description || '',
-                          location: item.location || '',
-                          type: item.type,
-                          category: item.category,
-                          categoryId: item.categoryId,
-                          order: index,
-                        })),
+                        events: items.map((item, index) => {
+                          // Find the category ID if the item has a category
+                          let categoryId = undefined;
+                          if (item.category && showCategories) {
+                            const matchingCategory = categories.find(cat => cat.name === item.category);
+                            if (matchingCategory) {
+                              categoryId = matchingCategory.id && !isNaN(parseInt(matchingCategory.id)) 
+                                ? parseInt(matchingCategory.id) 
+                                : undefined;
+                            }
+                          }
+                          
+                          console.log(`Saving item: ${item.title} with category: ${item.category}, categoryId: ${categoryId}`);
+                          
+                          return {
+                            startTime: item.startTime,
+                            endTime: item.endTime,
+                            duration: item.duration,
+                            title: item.title,
+                            description: item.description || '',
+                            location: item.location || '',
+                            type: item.type,
+                            category: item.category,
+                            categoryId: categoryId, // Include the category ID explicitly
+                            order: index,
+                          };
+                        }),
                       })}
                       disabled={saveMutation.isPending || !weddingInfo.names || !weddingInfo.date}
                       className="ml-2 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200 font-medium"
@@ -770,18 +819,33 @@ export default function TimelinePage() {
                       order: category.order || index,
                       ...(category.id && !isNaN(parseInt(category.id)) ? { id: parseInt(category.id) } : {}),
                     })) : [],
-                    events: items.map((item, index) => ({
-                      startTime: item.startTime,
-                      endTime: item.endTime,
-                      duration: item.duration,
-                      title: item.title,
-                      description: item.description || '',
-                      location: item.location || '',
-                      type: item.type,
-                      category: item.category,
-                      categoryId: item.categoryId,
-                      order: index,
-                    })),
+                    events: items.map((item, index) => {
+                      // Find the category ID if the item has a category
+                      let categoryId = undefined;
+                      if (item.category && showCategories) {
+                        const matchingCategory = categories.find(cat => cat.name === item.category);
+                        if (matchingCategory) {
+                          categoryId = matchingCategory.id && !isNaN(parseInt(matchingCategory.id)) 
+                            ? parseInt(matchingCategory.id) 
+                            : undefined;
+                        }
+                      }
+                      
+                      console.log(`Saving item: ${item.title} with category: ${item.category}, categoryId: ${categoryId}`);
+                      
+                      return {
+                        startTime: item.startTime,
+                        endTime: item.endTime,
+                        duration: item.duration,
+                        title: item.title,
+                        description: item.description || '',
+                        location: item.location || '',
+                        type: item.type,
+                        category: item.category,
+                        categoryId: categoryId, // Include the category ID explicitly
+                        order: index,
+                      };
+                    }),
                   })}
                   disabled={saveMutation.isPending || !weddingInfo.names || !weddingInfo.date}
                   variant="default"
