@@ -182,9 +182,12 @@ export default function TimelinePage() {
       console.log(`Fetching timeline with ID: ${id}`);
       
       // Check if we should disable refetch due to bulk edit mode
-      const bulkEditMode = queryClient.getQueryData(['bulkEditMode']) as boolean;
-      if (bulkEditMode) {
-        console.log(`[DEBUG] Aborting timeline fetch because bulk edit mode is active`);
+      const bulkEditActive = sessionStorage.getItem('bulkEditActive') === 'true';
+      const editingTimelineId = sessionStorage.getItem('editingTimelineId');
+      
+      // Skip fetch if this is the timeline currently being edited
+      if (bulkEditActive && editingTimelineId === id) {
+        console.log(`[DEBUG] Aborting timeline fetch because bulk edit mode is active in sessionStorage`);
         // Return the existing data from the query client to prevent refetching
         const existing = queryClient.getQueryData([`/api/timelines/${id}`]) as Timeline;
         if (existing) {
@@ -222,12 +225,13 @@ export default function TimelinePage() {
   useEffect(() => {
     if (!existingTimeline) return;
     
-    // Get bulk edit mode from Redux state
-    const bulkEditMode = queryClient.getQueryData(['bulkEditMode']) as boolean;
+    // Check if we're in bulk edit mode using sessionStorage
+    const bulkEditActive = sessionStorage.getItem('bulkEditActive') === 'true';
+    const editingTimelineId = sessionStorage.getItem('editingTimelineId');
     
-    // Skip timeline processing if in bulk edit mode
-    if (bulkEditMode) {
-      console.log('[DEBUG] Skipping timeline data processing because bulk edit mode is active');
+    // Skip timeline processing if in bulk edit mode for this timeline
+    if (bulkEditActive && editingTimelineId === id) {
+      console.log('[DEBUG] Skipping timeline data processing because bulk edit mode is active in sessionStorage');
       return;
     }
     
@@ -331,13 +335,16 @@ export default function TimelinePage() {
       const method = id ? 'PUT' : 'POST';
 
       // Check if we should use the preserved categories state
-      const isBulkEditMode = queryClient.getQueryData(['bulkEditMode']) as boolean;
-      const preservedCategoriesState = queryClient.getQueryData(['preservedCategoriesState']) as boolean | undefined;
-      const effectiveCategoriesEnabled = isBulkEditMode && typeof preservedCategoriesState === 'boolean' 
-        ? preservedCategoriesState 
+      const bulkEditActive = sessionStorage.getItem('bulkEditActive') === 'true';
+      const preservedCategoriesState = sessionStorage.getItem('preservedCategoriesState');
+      
+      // If in bulk edit mode, use the preserved categories state
+      const effectiveCategoriesEnabled = bulkEditActive && preservedCategoriesState !== null
+        ? preservedCategoriesState === 'true'
         : showCategories;
 
-      console.log(`[DEBUG] Saving timeline with categoriesEnabled=${effectiveCategoriesEnabled} (current=${showCategories}, preserved=${preservedCategoriesState}, bulkEdit=${isBulkEditMode})`);
+      console.log(`[DEBUG] Saving timeline with categoriesEnabled=${effectiveCategoriesEnabled} ` +
+        `(current=${showCategories}, preserved=${preservedCategoriesState}, bulkEdit=${bulkEditActive})`);
 
       const payload = data || {
         title: weddingInfo.names,
@@ -419,10 +426,10 @@ export default function TimelinePage() {
         description: "Timeline saved successfully",
       });
       
-      // Check if we're in bulk edit mode
-      const bulkEditMode = queryClient.getQueryData(['bulkEditMode']) as boolean;
+      // Check if we're in bulk edit mode using sessionStorage
+      const bulkEditActive = sessionStorage.getItem('bulkEditActive') === 'true';
       
-      if (!bulkEditMode) {
+      if (!bulkEditActive) {
         // Only invalidate queries if not in bulk edit mode
         queryClient.invalidateQueries({ queryKey: ['/api/timelines'] });
         if (id) {
@@ -506,12 +513,14 @@ export default function TimelinePage() {
 
   const handleSaveAndNavigate = async () => {
     // Reset bulk edit mode when manually saving
-    queryClient.setQueryData(['bulkEditMode'], false);
+    sessionStorage.removeItem('bulkEditActive');
+    sessionStorage.removeItem('editingTimelineId');
+    // Keep preservedCategoriesState until it's used for the save operation
     
     // Get the preserved categories state if available
-    const preservedCategoriesState = queryClient.getQueryData(['preservedCategoriesState']) as boolean | undefined;
-    const effectiveCategoriesEnabled = typeof preservedCategoriesState === 'boolean' 
-      ? preservedCategoriesState 
+    const preservedCategoriesState = sessionStorage.getItem('preservedCategoriesState');
+    const effectiveCategoriesEnabled = preservedCategoriesState !== null
+      ? preservedCategoriesState === 'true'
       : showCategories;
       
     try {

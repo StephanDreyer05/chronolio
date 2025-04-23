@@ -4769,8 +4769,21 @@ export function TimelineEditor({
     const selectedItemsCount = selectedItems.length;
     
     // Ensure we're in bulk edit mode when shifting times
-    queryClient.setQueryData(['bulkEditMode'], true);
-    console.log('[DEBUG] Time shift operation - preventing timeline data processing');
+    if (!sessionStorage.getItem('bulkEditActive')) {
+      sessionStorage.setItem('bulkEditActive', 'true');
+      
+      // Store timeline ID if not already set
+      if (!sessionStorage.getItem('editingTimelineId') && timelineId) {
+        sessionStorage.setItem('editingTimelineId', timelineId.toString());
+      }
+      
+      // Store categories state if not already preserved
+      if (!sessionStorage.getItem('preservedCategoriesState')) {
+        sessionStorage.setItem('preservedCategoriesState', showCategories ? 'true' : 'false');
+      }
+    }
+    
+    console.log('[DEBUG] Time shift operation - using sessionStorage to maintain state');
     
     dispatch(adjustSelectedTimes(minutes));
     
@@ -4782,14 +4795,6 @@ export function TimelineEditor({
       description: `${selectedItemsCount} item${selectedItemsCount !== 1 ? 's' : ''} moved ${absoluteMinutes} minute${absoluteMinutes !== 1 ? 's' : ''} ${direction}`,
       variant: "default",
     });
-    
-    // Keep the bulk edit mode active for a short while to prevent immediate refetching
-    setTimeout(() => {
-      if (bulkEditMode) {
-        // Only reset if we're still in bulk edit mode (user hasn't clicked exit)
-        queryClient.setQueryData(['bulkEditMode'], true);
-      }
-    }, 1000);
   };
   
   // Function to handle selecting all items in a category
@@ -5356,43 +5361,53 @@ export function TimelineEditor({
   const handleToggleBulkEditMode = () => {
     const newBulkEditMode = !bulkEditMode;
     
-    // Store bulk edit mode in query cache to inform other components
-    queryClient.setQueryData(['bulkEditMode'], newBulkEditMode);
-    
-    // Save the current categories setting to ensure it's preserved
+    // Simple flags in sessionStorage - no timeouts
     if (newBulkEditMode) {
-      console.log('[DEBUG] Entering bulk edit mode - preventing timeline data processing');
-      // Store the current categories setting
-      queryClient.setQueryData(['preservedCategoriesState'], showCategories);
-    } else {
-      console.log('[DEBUG] Exiting bulk edit mode - timeline data processing resumed');
-      // Restore the categories setting if needed
-      const preservedCategoriesState = queryClient.getQueryData(['preservedCategoriesState']) as boolean;
-      if (typeof preservedCategoriesState === 'boolean') {
-        setShowCategories(preservedCategoriesState);
-      }
+      // Store bulk edit status in sessionStorage
+      console.log('[DEBUG] Entering bulk edit mode - using sessionStorage to track state');
       
-      // Allow a small delay before allowing timeline processing again
-      setTimeout(() => {
-        queryClient.setQueryData(['bulkEditMode'], false);
-      }, 1000);
+      // Store the timeline's original categories state
+      sessionStorage.setItem('bulkEditActive', 'true');
+      sessionStorage.setItem('preservedCategoriesState', showCategories ? 'true' : 'false');
+      sessionStorage.setItem('editingTimelineId', timelineId?.toString() || '');
+    } else {
+      // Clear bulk edit status
+      console.log('[DEBUG] Exiting bulk edit mode - cleaning up sessionStorage');
+      sessionStorage.removeItem('bulkEditActive');
+      sessionStorage.removeItem('editingTimelineId');
+      
+      // Don't immediately clear preservedCategoriesState to allow it to be used in final state
     }
     
     dispatch(setBulkEditMode(newBulkEditMode));
   };
 
-  // Add useEffect to sync UI with the preserved categories state
+  // Update useEffect to sync UI with the preserved categories state
   useEffect(() => {
     if (bulkEditMode) {
-      // Check if we have a preserved categories state
-      const preservedCategoriesState = queryClient.getQueryData(['preservedCategoriesState']) as boolean;
-      if (typeof preservedCategoriesState === 'boolean') {
+      // Check for preserved categories state in sessionStorage
+      const preservedState = sessionStorage.getItem('preservedCategoriesState');
+      if (preservedState === 'true' || preservedState === 'false') {
+        const preserved = preservedState === 'true';
         // Ensure the UI reflects the preserved categories state
-        setShowCategories(preservedCategoriesState);
-        console.log(`[DEBUG] Using preserved categories state: ${preservedCategoriesState}`);
+        setShowCategories(preserved);
+        console.log(`[DEBUG] Using preserved categories state from sessionStorage: ${preserved}`);
+      }
+    } else {
+      // When exiting bulk edit mode, restore categories if needed
+      const preservedState = sessionStorage.getItem('preservedCategoriesState');
+      if (preservedState === 'true' || preservedState === 'false') {
+        const preserved = preservedState === 'true';
+        setShowCategories(preserved);
+        console.log(`[DEBUG] Restoring categories state on exit: ${preserved}`);
+        
+        // Clear the preserved state after using it on exit
+        setTimeout(() => {
+          sessionStorage.removeItem('preservedCategoriesState');
+        }, 500);
       }
     }
-  }, [bulkEditMode, queryClient]);
+  }, [bulkEditMode, setShowCategories]);
 
   return (
     <div className="space-y-6">
